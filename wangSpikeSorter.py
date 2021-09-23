@@ -265,8 +265,14 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         td = sio.loadmat(filename)
         self.rawmat = td
         self.data = td.get('waveforms')
+        self.initial_dataformat()
         self.comp_setup()
         self.statusbar.showMessage(f"loaded file: {filename}")
+    def initial_dataformat(self):
+        units = self.data['units'].item()
+        if (len(units) == 1):
+            units = units[0]
+            self.data['units'].itemset(units)
     def comp_setup(self):
         # compute PCA
         waves = self.data['waves'].item()
@@ -415,7 +421,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.autosave()
     def update_selectedunit(self, idx, unitnew):
         units = self.data['units'].item()
-        units[0][idx] = unitnew
+        units[idx] = unitnew
         self.update_unit(units)
     def autosave(self):
         mdict = self.rawmat
