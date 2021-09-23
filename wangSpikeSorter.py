@@ -7,25 +7,37 @@ import scipy.io as sio
 from scipy.io import loadmat
 import matplotlib.path as mplPath
 from intersect import intersection
+import glob
+import os
 
 class MultiLine(pg.QtGui.QGraphicsPathItem):
-    def __init__(self, y, x = []):
-        """x and y are 2D arrays of shape (Nplots, Nsamples)"""
-        if len(x) == 0:
-            x = np.empty(y.shape)
-            x[:] = np.arange(y.shape[1])[np.newaxis, :]
-        connect = np.ones(y.shape, dtype=bool)
-        connect[:,-1] = 0 # don't draw the segment between each trace
-        self.path = pg.arrayToQPath(x.flatten(), y.flatten(), connect.flatten())
+    def __init__(self):
+        self.path = QtGui.QPainterPath()
         pg.QtGui.QGraphicsPathItem.__init__(self, self.path)
         self.setPen(pg.mkPen('k'))
+    def mysetData(self, y = [], x = []):
+        """x and y are 2D arrays of shape (Nplots, Nsamples)"""
+        if (len(y) > 0):
+            if (len(x) == 0):
+                x = np.empty(y.shape)
+                x[:] = np.arange(y.shape[1])[np.newaxis, :]
+            connect = np.ones(y.shape, dtype=bool)
+            connect[:, -1] = 0  # don't draw the segment between each trace
+            x = x.flatten()
+            y = y.flatten()
+            connect = connect.flatten()
+            self.path = pg.arrayToQPath(x, y, connect)
+            self.setPath(self.path)
+        else:
+            self.path = QtGui.QPainterPath()
+            self.setPath(self.path)
+
     def setcolor(self, col):
         self.setPen(pg.mkPen(col))
     def shape(self): # override because QGraphicsPathItem.shape is too expensive.
         return pg.QtGui.QGraphicsItem.shape(self)
     def boundingRect(self):
         return self.path.boundingRect()
-
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
@@ -84,17 +96,18 @@ class Ui_MainWindow(object):
         self.group_Methods.setGeometry(QtCore.QRect(10, 440, 761, 211))
         self.group_Methods.setObjectName("group_Methods")
         self.comboBox_ClusterMethods = QtWidgets.QComboBox(self.group_Methods)
-        self.comboBox_ClusterMethods.setGeometry(QtCore.QRect(10, 40, 104, 26))
+        self.comboBox_ClusterMethods.setGeometry(QtCore.QRect(10, 40, 204, 26))
         self.comboBox_ClusterMethods.setObjectName("comboBox_ClusterMethods")
-        self.pushButton_sortsafe = QtWidgets.QPushButton(self.group_Methods)
-        self.pushButton_sortsafe.setGeometry(QtCore.QRect(10, 140, 171, 32))
-        self.pushButton_sortsafe.setObjectName("pushButton_sortsafe")
+        self.comboBox_ClusterMethods.addItem("")
+        # self.pushButton_sortsafe = QtWidgets.QPushButton(self.group_Methods)
+        # self.pushButton_sortsafe.setGeometry(QtCore.QRect(10, 140, 171, 32))
+        # self.pushButton_sortsafe.setObjectName("pushButton_sortsafe")
         self.pushButton_sortall = QtWidgets.QPushButton(self.group_Methods)
         self.pushButton_sortall.setGeometry(QtCore.QRect(10, 170, 113, 32))
         self.pushButton_sortall.setObjectName("pushButton_sortall")
-        self.textEdit_sortsafe = QtWidgets.QTextEdit(self.group_Methods)
-        self.textEdit_sortsafe.setGeometry(QtCore.QRect(180, 140, 71, 31))
-        self.textEdit_sortsafe.setObjectName("textEdit_sortsafe")
+        # self.textEdit_sortsafe = QtWidgets.QTextEdit(self.group_Methods)
+        # self.textEdit_sortsafe.setGeometry(QtCore.QRect(180, 140, 71, 31))
+        # self.textEdit_sortsafe.setObjectName("textEdit_sortsafe")
         self.frame_Channel = QtWidgets.QFrame(self.centralwidget)
         self.frame_Channel.setGeometry(QtCore.QRect(780, 600, 621, 51))
         self.frame_Channel.setFrameShape(QtWidgets.QFrame.StyledPanel)
@@ -103,12 +116,12 @@ class Ui_MainWindow(object):
         self.label_channel = QtWidgets.QLabel(self.frame_Channel)
         self.label_channel.setGeometry(QtCore.QRect(10, 10, 171, 31))
         self.label_channel.setObjectName("label_channel")
-        self.textEdit_channel = QtWidgets.QTextEdit(self.frame_Channel)
-        self.textEdit_channel.setGeometry(QtCore.QRect(190, 10, 81, 31))
-        self.textEdit_channel.setObjectName("textEdit_channel")
-        self.pushButton_gotochannel = QtWidgets.QPushButton(self.frame_Channel)
-        self.pushButton_gotochannel.setGeometry(QtCore.QRect(280, 10, 113, 32))
-        self.pushButton_gotochannel.setObjectName("pushButton_gotochannel")
+        # self.textEdit_channel = QtWidgets.QTextEdit(self.frame_Channel)
+        # self.textEdit_channel.setGeometry(QtCore.QRect(190, 10, 81, 31))
+        # self.textEdit_channel.setObjectName("textEdit_channel")
+        # self.pushButton_gotochannel = QtWidgets.QPushButton(self.frame_Channel)
+        # self.pushButton_gotochannel.setGeometry(QtCore.QRect(280, 10, 113, 32))
+        # self.pushButton_gotochannel.setObjectName("pushButton_gotochannel")
         self.pushButton_previouschannel = QtWidgets.QPushButton(self.frame_Channel)
         self.pushButton_previouschannel.setGeometry(QtCore.QRect(390, 10, 113, 32))
         self.pushButton_previouschannel.setObjectName("pushButton_previouschannel")
@@ -152,17 +165,17 @@ class Ui_MainWindow(object):
         # self.checkBox_useasmodel.setText(_translate("MainWindow", "use as model"))
         self.pushButton_reset.setText(_translate("MainWindow", "Reset"))
         self.group_Methods.setTitle(_translate("MainWindow", "Clustering"))
-        self.pushButton_sortsafe.setText(_translate("MainWindow", "Cluster with confidence"))
+        # self.pushButton_sortsafe.setText(_translate("MainWindow", "Cluster with confidence"))
         self.pushButton_sortall.setText(_translate("MainWindow", "Cluster all"))
+        self.comboBox_ClusterMethods.setItemText(0, _translate("MainWindow", "minimal distance"))
         self.label_channel.setText(_translate("MainWindow", "Load data first"))
-        self.pushButton_gotochannel.setText(_translate("MainWindow", "Go to Channel"))
+        # self.pushButton_gotochannel.setText(_translate("MainWindow", "Go to Channel"))
         self.pushButton_previouschannel.setText(_translate("MainWindow", "Previous"))
         self.pushButton_nextchannel.setText(_translate("MainWindow", "Next Channel"))
         self.menuFile.setTitle(_translate("MainWindow", "File"))
         self.actionLoadFolder.setText(_translate("MainWindow", "Load folder"))
         self.actionLoadFolder.setStatusTip(_translate("MainWindow", "Load a folder"))
         self.actionLoadFolder.setShortcut(_translate("MainWindow", "Ctrl+O"))
-
 class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent = None):
         QMainWindow.__init__(self, parent = parent)
@@ -182,237 +195,13 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
         self.pushButton_Confirm.clicked.connect(self.sw_confirm)
+        self.pushButton_nextchannel.clicked.connect(self.sw_nextchannel)
+        self.pushButton_previouschannel.clicked.connect(self.sw_previouschannel)
+        self.pushButton_sortall.clicked.connect(self.sw_sortall)
         self.pca_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_pca)
         self.raw_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_raw)
         self.comboBox_PC1.activated.connect(self.sw_combobox_pc)
         self.comboBox_PC2.activated.connect(self.sw_combobox_pc)
-
-
-    def assist_openFileNameDialog(self):
-        dlg = QFileDialog()
-        if dlg.exec_():
-           fileName = dlg.selectedFiles()
-           if fileName:
-               self.filenow = fileName[0]
-               self.assist_loadfile() # import the first file
-    def assist_loadfile(self):
-        self.is_loaddata = True
-        filename = self.filenow
-        self.statusbar.showMessage(f"loading file: {filename}")
-        td = sio.loadmat(filename)
-        self.rawmat = td
-        self.data = td.get('waveforms')
-        self.assist_computedefault()
-
-    def assist_computedefault(self):
-        # compute PCA
-        waves = self.data['waves'].item()
-        self.pca = self.PCA(waves)
-        self.sw_combobox_pc()
-        self.sw_allfigures()
-    def sw_load_folder(self):
-        """
-            temporary: load a single file
-        """
-        self.assist_openFileNameDialog()
-
-    """
-    Incomplete
-    """
-    def sw_plt_units(self):
-        waves = self.data['waves'].item()
-        units = self.data['units'].item()
-        for ui in range(self.n_maxunit):
-            if ui == self.unit_now:
-                self.units_axes[0, ui].getViewBox().setBackgroundColor("m")
-            else:
-                self.units_axes[0, ui].getViewBox().setBackgroundColor("w")
-            if any(units == ui):
-                tid = (units == ui).squeeze()
-                lines = MultiLine(waves[tid,])
-                lines.setcolor(self.color_unit[ui])
-                self.units_axes[0, ui].clear()
-                self.units_axes[0, ui].addItem(lines)
-            else:
-                self.units_axes[0, ui].clear()
-    """
-    Siyu codes
-    """
-
-    def keyPressEvent(self, event):
-        key = event.key()
-        str = chr(key)
-        if str.isdigit():
-            keyint = np.int64(str)
-            if (keyint >=1) & (keyint <=self.n_maxunit):
-                self.unit_now = keyint
-                self.sw_allfigures()
-
-    def sw_plt_selected(self):
-        if len(self.pca_polygon_vertices) > 0:
-            pts = np.reshape(self.pca_polygon_vertices, [-1, 2])
-            pts = np.append(pts, [pts[0,]], axis=0)
-            self.pca_path.setData(x=pts[:, 0], y=pts[:, 1])
-        else:
-            self.pca_path.setData(x = [], y = [])
-
-
-        if len(self.raw_line_vertices) > 0:
-            pts = np.reshape(self.raw_line_vertices, [-1, 2])
-            pts = np.append(pts, [pts[0,]], axis=0)
-            self.raw_path.setData(x=pts[:, 0], y=pts[:, 1])
-        else:
-            self.raw_path.setData(x = [], y = [])
-    def update_unit(self, units):
-        self.data['units'].itemset(units)
-        self.sw_allfigures()
-        self.sw_autosave()
-
-    def assist_addpointsinpolygon(self, pts):
-        poly_path = mplPath.Path(pts)
-        pc = self.pc_now
-        idp = poly_path.contains_points(pc)
-        if len(self.idx_selected) > 0:
-            self.idx_selected = idp
-        else:
-            self.idx_selected = idp
-        self.sw_allfigures()
-    def assist_addpointsinline(self, pts):
-        waves = self.data['waves'].item()
-        nl = waves.shape[0]
-        npixel = waves.shape[1]
-        idp = np.repeat(False, nl)
-        for i in range(nl):
-            te = intersection(pts[:, 0], pts[:, 1], list(range(npixel)),waves[i,])
-            idp[i] = (te[0].shape[0] > 0)
-        if len(self.idx_selected) > 0:
-            self.idx_selected = idp
-        else:
-            self.idx_selected = idp
-        self.sw_allfigures()
-
-    def mouse_clicked_pca(self, event):
-        if self.is_addpoint != 0:
-            p = self.graphicsView_pca.plotItem.vb.mapSceneToView(event.scenePos())
-            self.pca_polygon_vertices.append([p.x(), p.y()])
-            pts = np.reshape(self.pca_polygon_vertices, [-1, 2])
-            pts = np.append(pts, [pts[0,]], axis=0)
-            self.assist_addpointsinpolygon(pts)
-    def mouse_clicked_raw(self, event):
-        if self.is_addpoint != 0:
-            p = self.graphicsView_raw.plotItem.vb.mapSceneToView(event.scenePos())
-            self.raw_line_vertices.append([p.x(), p.y()])
-            while len(self.raw_line_vertices) > 2:
-                self.raw_line_vertices.reverse()
-                self.raw_line_vertices.pop()
-                self.raw_line_vertices.reverse()
-            if len(self.raw_line_vertices) == 2:
-                pts = np.reshape(self.raw_line_vertices, [-1, 2])
-                self.assist_addpointsinline(pts)
-    def sw_addpoint(self):
-        cursor = QtCore.Qt.CrossCursor # QCursor
-        self.graphicsView_pca.setCursor(cursor)
-        self.graphicsView_raw.setCursor(cursor)
-        self.assist_reset_polygon()
-        self.is_addpoint = 1
-    def sw_removepoint(self):
-        cursor = QtCore.Qt.CrossCursor # QCursor
-        self.graphicsView_pca.setCursor(cursor)
-        self.graphicsView_raw.setCursor(cursor)
-        self.assist_reset_polygon()
-        self.is_addpoint = -1
-    def sw_plt_raw(self):
-        idp = self.idx_selected
-        waves = self.data['waves'].item()
-        units = self.data['units'].item()
-        self.graphicsView_raw.clear()
-        for ui in range(self.n_maxunit):
-            tid = (units == ui).squeeze()
-            if (self.is_addpoint != 0) & (len(idp) > 0):
-                tid = tid & ~idp
-            if any(tid):
-                lines = MultiLine(waves[tid, ])
-                lines.setcolor(self.color_unit[ui])
-                self.graphicsView_raw.addItem(lines)
-        if (self.is_addpoint != 0) & (len(idp) > 0) & any(idp):
-            lines = MultiLine(waves[idp,])
-            lines.setcolor("m")
-            self.graphicsView_raw.addItem(lines)
-    def sw_plt_pca(self):
-        pc = self.pca
-        n1 = self.comboBox_PC1.currentText()
-        n1 = int(n1[2])-1
-        n2 = self.comboBox_PC2.currentText()
-        n2 = int(n2[2])-1
-        units = self.data['units'].item()
-        for ui in range(self.n_maxunit):
-            if any(units == ui):
-                tid = (units == ui).squeeze()
-                self.pca_scatter[ui].setData(x = pc[tid,n1], y = pc[tid,n2])
-            else:
-                self.pca_scatter[ui].setData(x=[], y=[])
-        pc = self.pc_now
-        idp = self.idx_selected
-        if len(idp) > 0:
-            self.points_selected.setData(x=pc[idp, 0], y=pc[idp, 1])
-        else:
-            self.points_selected.setData(x=[], y=[])
-    def sw_allfigures(self):
-        self.sw_plt_pca()
-        self.sw_plt_raw()
-        self.sw_plt_selected()
-        self.sw_plt_units()
-    def sw_confirm(self):
-        idp = self.idx_selected
-        units = self.data['units'].item()
-        if (len(idp) > 0) & any(idp):
-            if self.is_addpoint == 1:
-                units[idp] = self.unit_now
-            else:
-                if self.is_addpoint == -1:
-                    units[idp] = 0
-        self.is_addpoint = 0
-        self.idx_selected = []
-        self.update_unit(units)
-        self.assist_reset_polygon()
-        cursor = QtCore.Qt.QCursor
-        self.graphicsView_pca.setCursor(cursor)
-        self.graphicsView_raw.setCursor(cursor)
-
-    def sw_reset(self):
-        self.setup_reset()
-        units = self.data['units'].item()
-        units = np.zeros(units.shape)
-        units = np.int64(units)
-        self.update_unit(units)
-    def sw_autosave(self):
-        mdict = self.rawmat
-        mdict['waveforms'] = self.data
-        sio.savemat(self.filenow, mdict)
-    def PCA(self, X, num_components=[]):
-        if len(num_components) == 0:
-            num_components = X.shape[1]
-        # Step-1
-        X_meaned = X - np.mean(X, axis=0)
-
-        # Step-2
-        cov_mat = np.cov(X_meaned, rowvar=False)
-
-        # Step-3
-        eigen_values, eigen_vectors = np.linalg.eigh(cov_mat)
-
-        # Step-4
-        sorted_index = np.argsort(eigen_values)[::-1]
-        sorted_eigenvalue = eigen_values[sorted_index]
-        sorted_eigenvectors = eigen_vectors[:, sorted_index]
-
-        # Step-5
-        eigenvector_subset = sorted_eigenvectors[:, 0:num_components]
-
-        # Step-6
-        X_reduced = np.dot(eigenvector_subset.transpose(), X_meaned.transpose()).transpose()
-
-        return X_reduced
     def setup_axes(self):
         # set up graphics view background
         self.graphicsView_pca.setBackground('w')
@@ -421,6 +210,16 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         # set up lines
         # -- raw
         self.raw_emptyplot = self.graphicsView_raw.plot(x=[], y=[], pen=pg.mkPen("m"))
+        self.raw_lines = []
+        for ui in range(self.n_maxunit):
+            lines = MultiLine()
+            lines.setcolor(self.color_unit[ui])
+            self.raw_lines.append(lines)
+            self.graphicsView_raw.addItem(lines)
+        lines = MultiLine()
+        lines.setcolor("m")
+        self.lines_selected = lines
+        self.graphicsView_raw.addItem(lines)
         te = pg.PlotCurveItem(pen=pg.mkPen("m"))  # this color needs to be changed
         self.raw_path = te
         self.graphicsView_raw.addItem(te)
@@ -446,9 +245,74 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 te = self.graphicsView_units.addPlot(row = uj, col = ui)
                 self.units_axes.append(te)
         self.units_axes = np.reshape(self.units_axes, (-1,self.n_maxunit))
+    def setup_reset(self):
+        self.comboBox_PC1.setCurrentIndex(0)
+        self.comboBox_PC2.setCurrentIndex(1)
+        self.sw_combobox_pc()
+        self.is_addpoint = 0
+        self.idx_selected = []
+        self.idx_selected_temp = []
+        self.pca_polygon_vertices = []
+        self.raw_line_vertices = []
+        self.unit_now = 0
+        cursor = QtCore.Qt.ArrowCursor
+        self.graphicsView_pca.setCursor(cursor)
+        self.graphicsView_raw.setCursor(cursor)
+    def file_loadfile(self):
+        self.setup_reset()
+        self.is_loaddata = True
+        filename = self.filenow
+        td = sio.loadmat(filename)
+        self.rawmat = td
+        self.data = td.get('waveforms')
+        self.comp_setup()
+        self.statusbar.showMessage(f"loaded file: {filename}")
+    def comp_setup(self):
+        # compute PCA
+        waves = self.data['waves'].item()
+        self.pca = self.PCA(waves)
+        self.sw_combobox_pc()
+        self.comp_default()
+        self.plt_all()
+    def comp_default(self):
+        # pc = self.pca
+        units = self.data['units'].item()
+        waves = self.data['waves'].item()
+        npix = waves.shape[1]
+        av = np.zeros((self.n_maxunit, npix))
+        for i in range(self.n_maxunit):
+            tid = (units == i).squeeze()
+            if np.any(tid):
+                av[i,] = np.mean(waves[tid,], axis = 0)
+        self.av_waves = av
+        dist = np.zeros((waves.shape[0], self.n_maxunit))
+        for i in range(self.n_maxunit):
+            dist[:,i] = np.mean((waves - av[i,])**2, axis = 1)
+        self.dist_waves = dist
+    def PCA(self, X, num_components=[]):
+        if len(num_components) == 0:
+            num_components = X.shape[1]
+        # Step-1
+        X_meaned = X - np.mean(X, axis=0)
 
+        # Step-2
+        cov_mat = np.cov(X_meaned, rowvar=False)
 
+        # Step-3
+        eigen_values, eigen_vectors = np.linalg.eigh(cov_mat)
 
+        # Step-4
+        sorted_index = np.argsort(eigen_values)[::-1]
+        sorted_eigenvalue = eigen_values[sorted_index]
+        sorted_eigenvectors = eigen_vectors[:, sorted_index]
+
+        # Step-5
+        eigenvector_subset = sorted_eigenvectors[:, 0:num_components]
+
+        # Step-6
+        X_reduced = np.dot(eigenvector_subset.transpose(), X_meaned.transpose()).transpose()
+
+        return X_reduced
     def sw_combobox_pc(self):
         if self.is_loaddata:
             n1 = self.comboBox_PC1.currentText()
@@ -457,25 +321,252 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             n2 = int(n2[2]) - 1
             pc = self.pca[:, (n1, n2)]
             self.pc_now = pc
-            self.assist_reset_polygon()
-            self.sw_plt_pca()
-    def assist_reset_polygon(self):
+            self.pca_polygon_vertices = []
+            self.idx_selected_temp = []
+            self.plt_pca()
+    def sw_reset(self):
+        self.setup_reset()
+        units = self.data['units'].item()
+        units = np.zeros(units.shape)
+        units = np.int64(units)
+        self.update_unit(units)
+    def plt_all(self):
+        self.plt_pca()
+        self.plt_raw()
+        self.plt_selectiontool()
+        self.plt_units()
+    def plt_pca(self):
+        units = self.data['units'].item()
+        pc = self.pc_now
+        idp = self.get_selected()
+        for ui in range(self.n_maxunit):
+            tid = (units == ui).squeeze()
+            if len(idp) > 0:
+                tid = tid & ~idp
+            if np.any(tid):
+                self.pca_scatter[ui].setData(x = pc[tid,0], y = pc[tid,1])
+            else:
+                self.pca_scatter[ui].setData(x=[], y=[])
+        if (len(idp) > 0) & np.any(idp):
+            self.points_selected.setData(x=pc[idp, 0], y=pc[idp, 1])
+        else:
+            self.points_selected.setData(x=[], y=[])
+    def plt_raw(self):
+        idp = self.get_selected()
+        waves = self.data['waves'].item()
+        units = self.data['units'].item()
+        for ui in range(self.n_maxunit):
+            tid = (units == ui).squeeze()
+            if len(idp) > 0:
+                tid = tid & ~idp
+            if np.any(tid):
+                self.raw_lines[ui].mysetData(waves[tid,])
+            else:
+                self.raw_lines[ui].mysetData()
+        if (len(idp) > 0) & np.any(idp):
+            self.lines_selected.mysetData(waves[idp,])
+        else:
+            self.lines_selected.mysetData()
+    def plt_selectiontool(self):
+        if len(self.pca_polygon_vertices) > 0:
+            pts = np.reshape(self.pca_polygon_vertices, [-1, 2])
+            pts = np.append(pts, [pts[0,]], axis=0)
+            self.pca_path.setData(x=pts[:, 0], y=pts[:, 1])
+        else:
+            self.pca_path.setData(x = [], y = [])
+        if len(self.raw_line_vertices) > 0:
+            pts = np.reshape(self.raw_line_vertices, [-1, 2])
+            pts = np.append(pts, [pts[0,]], axis=0)
+            self.raw_path.setData(x=pts[:, 0], y=pts[:, 1])
+        else:
+            self.raw_path.setData(x = [], y = [])
+    def plt_units(self):
+        waves = self.data['waves'].item()
+        units = self.data['units'].item()
+        for i in range(self.n_maxunit):
+            if i == self.unit_now:
+                self.units_axes[0, i].getViewBox().setBackgroundColor("m")
+            else:
+                self.units_axes[0, i].getViewBox().setBackgroundColor("w")
+            if np.any(units == i):
+                tid = (units == i).squeeze()
+                lines = MultiLine()
+                lines.mysetData(waves[tid,])
+                lines.setcolor(self.color_unit[i])
+                self.units_axes[0, i].clear()
+                self.units_axes[0, i].addItem(lines)
+            else:
+                self.units_axes[0, i].clear()
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key == 16777249:
+            print('ctr + o, open file')
+            return;
+        str = chr(key)
+        if str.isdigit():
+            keyint = np.int64(str)
+            if (keyint >=0) & (keyint <self.n_maxunit):
+                self.unit_now = keyint
+                self.plt_all()
+    def update_unit(self, units):
+        self.data['units'].itemset(units)
+        self.comp_default()
+        self.plt_all()
+        self.autosave()
+    def update_selectedunit(self, idx, unitnew):
+        units = self.data['units'].item()
+        units[0][idx] = unitnew
+        self.update_unit(units)
+    def autosave(self):
+        mdict = self.rawmat
+        mdict['waveforms'] = self.data
+        sio.savemat(self.filenow, mdict)
+    def sw_addpoint(self):
+        cursor = QtCore.Qt.CrossCursor # QCursor
+        self.graphicsView_pca.setCursor(cursor)
+        self.graphicsView_raw.setCursor(cursor)
+        self.idx_selected_temp = []
         self.pca_polygon_vertices = []
         self.raw_line_vertices = []
-    def setup_reset(self):
-        self.assist_reset_polygon()
-        self.comboBox_PC1.setCurrentIndex(0)
-        self.comboBox_PC2.setCurrentIndex(1)
-        self.sw_combobox_pc()
+        self.is_addpoint = 1
+    def sw_removepoint(self):
+        cursor = QtCore.Qt.IBeamCursor # QCursor
+        self.graphicsView_pca.setCursor(cursor)
+        self.graphicsView_raw.setCursor(cursor)
+        self.idx_selected_temp = []
+        self.pca_polygon_vertices = []
+        self.raw_line_vertices = []
+        self.is_addpoint = -1
+    def sw_confirm(self):
+        self.update_selected()
+        idp = self.idx_selected
+        units = self.data['units'].item()
+        if (len(idp) > 0) & np.any(idp):
+            self.update_selectedunit(idp, self.unit_now)
         self.is_addpoint = 0
         self.idx_selected = []
-        self.unit_now = 0
+        self.idx_selected_temp = []
+        self.raw_line_vertices = []
+        self.pca_polygon_vertices = []
+        cursor = QtCore.Qt.ArrowCursor
+        self.graphicsView_pca.setCursor(cursor)
+        self.graphicsView_raw.setCursor(cursor)
+        self.update_unit(units)
+    def update_selected(self):
+        tmp = self.idx_selected_temp
+        if (len(tmp) > 0):
+            if len(self.idx_selected) > 0:
+                if self.is_addpoint == 1:
+                    self.idx_selected = self.idx_selected | tmp
+                else:
+                    self.idx_selected = self.idx_selected & ~tmp
+            else:
+                if self.is_addpoint == 1:
+                    self.idx_selected = tmp
+                else:
+                    self.idx_selected = []
+        self.idx_selected_temp = []
+        self.plt_all()
+    def get_selected(self):
+        idp = self.idx_selected
+        if len(self.idx_selected_temp) > 0:
+            if len(idp) > 0:
+                if self.is_addpoint == 1:
+                    idp = idp | self.idx_selected_temp
+                else:
+                    idp = idp & ~self.idx_selected_temp
+            else:
+                if self.is_addpoint == 1:
+                    idp = self.idx_selected_temp
+                else:
+                    idp = []
+        return(idp)
+    def mouse_clicked_raw(self, event):
+        if self.is_addpoint != 0:
+            p = self.graphicsView_raw.plotItem.vb.mapSceneToView(event.scenePos())
+            self.raw_line_vertices.append([p.x(), p.y()])
+            while len(self.raw_line_vertices) > 2:
+                self.raw_line_vertices.reverse()
+                self.raw_line_vertices.pop()
+                self.raw_line_vertices.reverse()
+            if len(self.raw_line_vertices) == 2:
+                pts = np.reshape(self.raw_line_vertices, [-1, 2])
+                self.assist_addpointsinline(pts)
+            if event.button() == 2:
+                self.update_selected()
+                self.is_addpoint = 0
+    def mouse_clicked_pca(self, event):
+        if self.is_addpoint != 0:
+            p = self.graphicsView_pca.plotItem.vb.mapSceneToView(event.scenePos())
+            self.pca_polygon_vertices.append([p.x(), p.y()])
+            pts = np.reshape(self.pca_polygon_vertices, [-1, 2])
+            pts = np.append(pts, [pts[0,]], axis=0)
+            self.assist_addpointsinpolygon(pts)
+            if event.button() == 2:
+                self.update_selected()
+                self.is_addpoint = 0
+    def assist_addpointsinpolygon(self, pts):
+        poly_path = mplPath.Path(pts)
+        pc = self.pc_now
+        idp = poly_path.contains_points(pc)
+        self.idx_selected_temp = idp
+        self.plt_all()
+    def assist_addpointsinline(self, pts):
+        waves = self.data['waves'].item()
+        nl = waves.shape[0]
+        npixel = waves.shape[1]
+        idp = np.repeat(False, nl)
+        idxs = self.idx_selected
+        for i in range(nl):
+            # if (self.is_addpoint == 1) & (len(idxs)>0) & idxs[i]:
+            #     idp[i] = True
+            # else:
+            #     if (self.is_addpoint == -1) & (len(idxs)>0) & ~idxs[i]:
+            #         idp[i] = True
+            #     else:
+            te = intersection(pts[:, 0], pts[:, 1], list(range(npixel)),waves[i,])
+            idp[i] = (te[0].shape[0] > 0)
+        self.idx_selected_temp = idp
+        self.plt_all()
+    def choosefile(self, fid):
+        self.fileid = fid
+        self.filenow = self.folderName + self.filelists[fid]
+        self.label_channel.setText(f'channel {fid+1} / {self.n_file}')
+        # self.textEdit_channel.setText(f'{fid+1}')
+        self.file_loadfile()  # import the first file
+    def load_folder(self):
+        fs = os.listdir(self.folderName)
+        self.filelists = [x for x in fs if x.endswith('mat')]
+        self.n_file = len(self.filelists)
+        self.choosefile(0)
+    def sw_load_folder(self):
+        dlg = QFileDialog()
+        if dlg.exec_():
+            self.folderName = dlg.selectedFiles()[0]
+            if self.folderName:
+                self.load_folder()
+    def sw_previouschannel(self):
+        self.fileid = self.fileid - 1
+        if self.fileid < 0:
+            self.fileid = 0
+        self.choosefile(self.fileid)
+    def sw_nextchannel(self):
+        self.fileid = self.fileid + 1
+        if self.fileid >= self.n_file:
+            self.fileid = self.n_file - 1
+        self.choosefile(self.fileid)
+    def sw_sortall(self):
+        if self.comboBox_ClusterMethods.currentText() == "minimal distance":
+            dists = self.dist_waves
+            dists_u = dists[:,range(1,self.n_maxunit-1)]
+            units_predict = dists_u.argmin(axis = 1) + 1
+            self.update_unit(units_predict)
 
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
     ui = SW_MainWindow()
     ui.show()
-    ui.filenow = './test.mat'
-    ui.assist_loadfile()
+    ui.folderName = './'
+    ui.load_folder()
     sys.exit(app.exec_())
