@@ -1,7 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMainWindow
-# from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-# import matplotlib.pyplot as plt
 from pyqtgraph import PlotWidget, GraphicsLayoutWidget, plot
 import pyqtgraph as pg
 import numpy as np
@@ -134,7 +132,6 @@ class Ui_MainWindow(object):
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
-
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
@@ -171,6 +168,25 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         QMainWindow.__init__(self, parent = parent)
         self.setupUi(self)
         self.setup_SW()
+    def setup_SW(self):
+        # set up colors
+        self.color_unit = ["k","r","b","g","c","y"]
+        self.n_maxunit = len(self.color_unit)
+        self.is_loaddata = False
+        self.setup_reset()
+        self.setup_axes()
+        self.setup_connect()
+    def setup_connect(self):
+        self.actionLoadFolder.triggered.connect(self.sw_load_folder)
+        self.pushButton_reset.clicked.connect(self.sw_reset)
+        self.pushButton_Add.clicked.connect(self.sw_addpoint)
+        self.pushButton_Remove.clicked.connect(self.sw_removepoint)
+        self.pushButton_Confirm.clicked.connect(self.sw_confirm)
+        self.pca_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_pca)
+        self.raw_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_raw)
+        self.comboBox_PC1.activated.connect(self.sw_combobox_pc)
+        self.comboBox_PC2.activated.connect(self.sw_combobox_pc)
+
 
     def assist_openFileNameDialog(self):
         dlg = QFileDialog()
@@ -431,16 +447,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes.append(te)
         self.units_axes = np.reshape(self.units_axes, (-1,self.n_maxunit))
 
-    def setup_connect(self):
-        self.actionLoadFolder.triggered.connect(self.sw_load_folder)
-        self.pushButton_reset.clicked.connect(self.sw_reset)
-        self.pushButton_Add.clicked.connect(self.sw_addpoint)
-        self.pushButton_Remove.clicked.connect(self.sw_removepoint)
-        self.pushButton_Confirm.clicked.connect(self.sw_confirm)
-        self.pca_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_pca)
-        self.raw_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_raw)
-        self.comboBox_PC1.activated.connect(self.sw_combobox_pc)
-        self.comboBox_PC2.activated.connect(self.sw_combobox_pc)
+
 
     def sw_combobox_pc(self):
         if self.is_loaddata:
@@ -463,14 +470,6 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.is_addpoint = 0
         self.idx_selected = []
         self.unit_now = 0
-    def setup_SW(self):
-        # set up colors
-        self.color_unit = ["k","r","b","g","c","y"]
-        self.n_maxunit = len(self.color_unit)
-        self.is_loaddata = False
-        self.setup_reset()
-        self.setup_axes()
-        self.setup_connect()
 
 if __name__ == "__main__":
     import sys
