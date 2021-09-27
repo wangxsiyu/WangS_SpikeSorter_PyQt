@@ -444,6 +444,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         mdict = self.rawmat
         mdict['waveforms'] = self.data
         sio.savemat(self.filenow, mdict)
+        self.data['waves'].itemset(waves)
     def sw_addpoint(self):
         cursor = QtCore.Qt.CrossCursor # QCursor
         self.graphicsView_pca.setCursor(cursor)
