@@ -134,6 +134,8 @@ class Ui_MainWindow(object):
         self.menubar.setObjectName("menubar")
         self.menuFile = QtWidgets.QMenu(self.menubar)
         self.menuFile.setObjectName("menuFile")
+        self.menuEdit = QtWidgets.QMenu(self.menubar)
+        self.menuEdit.setObjectName("menuEdit")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
@@ -141,7 +143,11 @@ class Ui_MainWindow(object):
         self.actionLoadFolder = QtWidgets.QAction(MainWindow)
         self.actionLoadFolder.setObjectName("actionLoadFolder")
         self.menuFile.addAction(self.actionLoadFolder)
+        self.actionUndo = QtWidgets.QAction(MainWindow)
+        self.actionUndo.setObjectName("actionUndo")
+        self.menuEdit.addAction(self.actionUndo)
         self.menubar.addAction(self.menuFile.menuAction())
+        self.menubar.addAction(self.menuEdit.menuAction())
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -173,9 +179,14 @@ class Ui_MainWindow(object):
         self.pushButton_previouschannel.setText(_translate("MainWindow", "Previous"))
         self.pushButton_nextchannel.setText(_translate("MainWindow", "Next Channel"))
         self.menuFile.setTitle(_translate("MainWindow", "File"))
+        self.menuEdit.setTitle(_translate("MainWindow", "Edit"))
         self.actionLoadFolder.setText(_translate("MainWindow", "Load folder"))
         self.actionLoadFolder.setStatusTip(_translate("MainWindow", "Load a folder"))
         self.actionLoadFolder.setShortcut(_translate("MainWindow", "Ctrl+O"))
+        self.actionUndo.setText(_translate("MainWindow", "Undo"))
+        self.actionUndo.setStatusTip(_translate("MainWindow", "Undo"))
+        self.actionUndo.setShortcut(_translate("MainWindow", "Ctrl+Z"))
+
 class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent = None):
         QMainWindow.__init__(self, parent = parent)
@@ -191,6 +202,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.setup_connect()
     def setup_connect(self):
         self.actionLoadFolder.triggered.connect(self.sw_load_folder)
+        self.actionUndo.triggered.connect(self.sw_undo)
         self.pushButton_reset.clicked.connect(self.sw_reset)
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
@@ -273,6 +285,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         if (len(units) == 1):
             units = units[0]
             self.data['units'].itemset(units)
+        waves = self.data['waves'].item()
+        self.data['waves'].itemset(waves.T)
     def comp_setup(self):
         # compute PCA
         waves = self.data['waves'].item()
@@ -424,6 +438,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         units[idx] = unitnew
         self.update_unit(units)
     def autosave(self):
+        # reverse waves
+        waves = self.data['waves'].item()
+        self.data['waves'].itemset(waves.T)
         mdict = self.rawmat
         mdict['waveforms'] = self.data
         sio.savemat(self.filenow, mdict)
@@ -536,13 +553,14 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.plt_all()
     def choosefile(self, fid):
         self.fileid = fid
-        self.filenow = self.folderName + self.filelists[fid]
+        self.filenow = os.path.join(self.folderName, self.filelists[fid])
         self.label_channel.setText(f'channel {fid+1} / {self.n_file}')
         # self.textEdit_channel.setText(f'{fid+1}')
         self.file_loadfile()  # import the first file
     def load_folder(self):
         fs = os.listdir(self.folderName)
-        self.filelists = [x for x in fs if x.endswith('mat')]
+        fs.sort()
+        self.filelists = [x for x in fs if x.startswith('waveforms')]
         self.n_file = len(self.filelists)
         self.choosefile(0)
     def sw_load_folder(self):
@@ -567,12 +585,14 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             dists_u = dists[:,range(1,self.n_maxunit-1)]
             units_predict = dists_u.argmin(axis = 1) + 1
             self.update_unit(units_predict)
+    def sw_undo(self):
+        print('incomplete')
 
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
     ui = SW_MainWindow()
     ui.show()
-    ui.folderName = './'
-    ui.load_folder()
+    # ui.folderName = './'
+    # ui.load_folder()
     sys.exit(app.exec_())
