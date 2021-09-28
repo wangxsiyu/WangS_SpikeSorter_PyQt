@@ -267,6 +267,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.pca_polygon_vertices = []
         self.raw_line_vertices = []
         self.unit_now = 0
+        self.history_units = []
+        self.is_addhistory = True
         cursor = QtCore.Qt.ArrowCursor
         self.graphicsView_pca.setCursor(cursor)
         self.graphicsView_raw.setCursor(cursor)
@@ -281,23 +283,23 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.comp_setup()
         self.statusbar.showMessage(f"loaded file: {filename}")
     def initial_dataformat(self):
-        units = self.data['units'].item()
+        units = self.data['units'].item().copy()
         if (len(units) == 1):
             units = units[0]
             self.data['units'].itemset(units)
-        waves = self.data['waves'].item()
+        waves = self.data['waves'].item().copy()
         self.data['waves'].itemset(waves.T)
     def comp_setup(self):
         # compute PCA
-        waves = self.data['waves'].item()
+        waves = self.data['waves'].item().copy()
         self.pca = self.PCA(waves)
         self.sw_combobox_pc()
         self.comp_default()
         self.plt_all()
     def comp_default(self):
         # pc = self.pca
-        units = self.data['units'].item()
-        waves = self.data['waves'].item()
+        units = self.data['units'].item().copy()
+        waves = self.data['waves'].item().copy()
         npix = waves.shape[1]
         av = np.zeros((self.n_maxunit, npix))
         for i in range(self.n_maxunit):
@@ -345,8 +347,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.idx_selected_temp = []
             self.plt_pca()
     def sw_reset(self):
-        self.setup_reset()
-        units = self.data['units'].item()
+        # self.setup_reset()
+        units = self.data['units'].item().copy()
         units = np.zeros(units.shape)
         units = np.int64(units)
         self.update_unit(units)
@@ -356,7 +358,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.plt_selectiontool()
         self.plt_units()
     def plt_pca(self):
-        units = self.data['units'].item()
+        units = self.data['units'].item().copy()
         pc = self.pc_now
         idp = self.get_selected()
         for ui in range(self.n_maxunit):
@@ -373,8 +375,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.points_selected.setData(x=[], y=[])
     def plt_raw(self):
         idp = self.get_selected()
-        waves = self.data['waves'].item()
-        units = self.data['units'].item()
+        waves = self.data['waves'].item().copy()
+        units = self.data['units'].item().copy()
         for ui in range(self.n_maxunit):
             tid = (units == ui).squeeze()
             if len(idp) > 0:
@@ -401,8 +403,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         else:
             self.raw_path.setData(x = [], y = [])
     def plt_units(self):
-        waves = self.data['waves'].item()
-        units = self.data['units'].item()
+        waves = self.data['waves'].item().copy()
+        units = self.data['units'].item().copy()
         for i in range(self.n_maxunit):
             if i == self.unit_now:
                 self.units_axes[0, i].getViewBox().setBackgroundColor("m")
@@ -420,7 +422,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def keyPressEvent(self, event):
         key = event.key()
         if key == 16777249:
-            print('ctr + o, open file')
+            print('ctr command pressed')
             return;
         str = chr(key)
         if str.isdigit():
@@ -429,17 +431,22 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.unit_now = keyint
                 self.plt_all()
     def update_unit(self, units):
+        # print('call update_unit')
+        if self.is_addhistory:
+            # print('add units +1')
+            self.history_units.append(self.data['units'].item())
+            # print(self.history_units)
         self.data['units'].itemset(units)
         self.comp_default()
         self.plt_all()
         self.autosave()
     def update_selectedunit(self, idx, unitnew):
-        units = self.data['units'].item()
+        units = self.data['units'].item().copy()
         units[idx] = unitnew
         self.update_unit(units)
     def autosave(self):
         # reverse waves
-        waves = self.data['waves'].item()
+        waves = self.data['waves'].item().copy()
         self.data['waves'].itemset(waves.T)
         mdict = self.rawmat
         mdict['waveforms'] = self.data
@@ -464,9 +471,6 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def sw_confirm(self):
         self.update_selected()
         idp = self.idx_selected
-        units = self.data['units'].item()
-        if (len(idp) > 0) & np.any(idp):
-            self.update_selectedunit(idp, self.unit_now)
         self.is_addpoint = 0
         self.idx_selected = []
         self.idx_selected_temp = []
@@ -475,7 +479,12 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         cursor = QtCore.Qt.ArrowCursor
         self.graphicsView_pca.setCursor(cursor)
         self.graphicsView_raw.setCursor(cursor)
-        self.update_unit(units)
+        # units = self.data['units'].item()
+        if (len(idp) > 0) & np.any(idp):
+            # self.is_addhistory = False
+            self.update_selectedunit(idp, self.unit_now)
+            # self.is_addhistory = True
+        # self.update_unit(units)
     def update_selected(self):
         tmp = self.idx_selected_temp
         if (len(tmp) > 0):
@@ -536,7 +545,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.idx_selected_temp = idp
         self.plt_all()
     def assist_addpointsinline(self, pts):
-        waves = self.data['waves'].item()
+        waves = self.data['waves'].item().copy()
         nl = waves.shape[0]
         npixel = waves.shape[1]
         idp = np.repeat(False, nl)
@@ -587,7 +596,12 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             units_predict = dists_u.argmin(axis = 1) + 1
             self.update_unit(units_predict)
     def sw_undo(self):
-        print('incomplete')
+        if len(self.history_units) > 0:
+            units = self.history_units[-1]
+            self.history_units.pop()
+            self.is_addhistory = False
+            self.update_unit(units)
+            self.is_addhistory = True
 
 if __name__ == "__main__":
     import sys
