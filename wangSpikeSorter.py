@@ -281,6 +281,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.history_units = []
         self.redo_units = []
         self.is_addhistory = True
+        self.is_locked = np.zeros(self.n_maxunit) == 1
         cursor = QtCore.Qt.ArrowCursor
         self.graphicsView_pca.setCursor(cursor)
         self.graphicsView_raw.setCursor(cursor)
@@ -422,6 +423,10 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[0, i].getViewBox().setBackgroundColor("m")
             else:
                 self.units_axes[0, i].getViewBox().setBackgroundColor("w")
+            if self.is_locked[i]:
+                self.units_axes[0, i].showGrid(y = True)
+            else:
+                self.units_axes[0, i].showGrid(y = False)
             if np.any(units == i):
                 tid = (units == i).squeeze()
                 lines = MultiLine()
@@ -442,8 +447,21 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             if (keyint >=0) & (keyint <self.n_maxunit):
                 self.unit_now = keyint
                 self.plt_all()
+        if str.isalpha():
+            if str == 'L':
+                self.is_locked[self.unit_now] = ~self.is_locked[self.unit_now]
+                self.plt_units()
+    def get_lockedlines(self):
+        units = self.data['units'].item()
+        out = np.zeros_like(units)
+        for i in range(self.n_maxunit):
+            if self.is_locked[i]:
+                out[units == i] = 1
+        return(out == 1)
     def update_unit(self, units):
         # print('call update_unit')
+        idx = self.get_lockedlines()
+        units[idx] = self.data['units'].item()[idx]
         if self.is_addhistory:
             # print('add units +1')
             self.history_units.append(self.data['units'].item())
@@ -498,16 +516,17 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             # self.is_addhistory = True
         # self.update_unit(units)
     def update_selected(self):
+        idl = self.get_lockedlines()
         tmp = self.idx_selected_temp
         if (len(tmp) > 0):
             if len(self.idx_selected) > 0:
                 if self.is_addpoint == 1:
-                    self.idx_selected = self.idx_selected | tmp
+                    self.idx_selected = (self.idx_selected | tmp) & ~idl
                 else:
-                    self.idx_selected = self.idx_selected & ~tmp
+                    self.idx_selected = (self.idx_selected & ~tmp) & ~idl
             else:
                 if self.is_addpoint == 1:
-                    self.idx_selected = tmp
+                    self.idx_selected = tmp & ~idl
                 else:
                     self.idx_selected = []
         self.idx_selected_temp = []
