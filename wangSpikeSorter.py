@@ -119,6 +119,9 @@ class Ui_MainWindow(object):
         # self.textEdit_channel = QtWidgets.QTextEdit(self.frame_Channel)
         # self.textEdit_channel.setGeometry(QtCore.QRect(190, 10, 81, 31))
         # self.textEdit_channel.setObjectName("textEdit_channel")
+        self.comboBox_channel = QtWidgets.QComboBox(self.frame_Channel)
+        self.comboBox_channel.setGeometry(QtCore.QRect(310, 10, 81, 31))
+        self.comboBox_channel.setObjectName("comboBox_channel")
         # self.pushButton_gotochannel = QtWidgets.QPushButton(self.frame_Channel)
         # self.pushButton_gotochannel.setGeometry(QtCore.QRect(280, 10, 113, 32))
         # self.pushButton_gotochannel.setObjectName("pushButton_gotochannel")
@@ -146,6 +149,9 @@ class Ui_MainWindow(object):
         self.actionUndo = QtWidgets.QAction(MainWindow)
         self.actionUndo.setObjectName("actionUndo")
         self.menuEdit.addAction(self.actionUndo)
+        self.actionRedo = QtWidgets.QAction(MainWindow)
+        self.actionRedo.setObjectName("actionRedo")
+        self.menuEdit.addAction(self.actionRedo)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuEdit.menuAction())
 
@@ -186,6 +192,9 @@ class Ui_MainWindow(object):
         self.actionUndo.setText(_translate("MainWindow", "Undo"))
         self.actionUndo.setStatusTip(_translate("MainWindow", "Undo"))
         self.actionUndo.setShortcut(_translate("MainWindow", "Ctrl+Z"))
+        self.actionRedo.setText(_translate("MainWindow", "Redo"))
+        self.actionRedo.setStatusTip(_translate("MainWindow", "Redo"))
+        self.actionRedo.setShortcut(_translate("MainWindow", "Ctrl+Shift+Z"))
 
 class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent = None):
@@ -203,6 +212,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def setup_connect(self):
         self.actionLoadFolder.triggered.connect(self.sw_load_folder)
         self.actionUndo.triggered.connect(self.sw_undo)
+        self.actionRedo.triggered.connect(self.sw_redo)
         self.pushButton_reset.clicked.connect(self.sw_reset)
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
@@ -214,6 +224,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.raw_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_raw)
         self.comboBox_PC1.activated.connect(self.sw_combobox_pc)
         self.comboBox_PC2.activated.connect(self.sw_combobox_pc)
+        self.comboBox_channel.activated.connect(self.sw_gotochannel)
     def setup_axes(self):
         # set up graphics view background
         self.graphicsView_pca.setBackground('w')
@@ -268,6 +279,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.raw_line_vertices = []
         self.unit_now = 0
         self.history_units = []
+        self.redo_units = []
         self.is_addhistory = True
         cursor = QtCore.Qt.ArrowCursor
         self.graphicsView_pca.setCursor(cursor)
@@ -421,7 +433,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[0, i].clear()
     def keyPressEvent(self, event):
         key = event.key()
-        if key == 16777249:
+        if (key == 16777249) | (key == 16777248):
             print('ctr command pressed')
             return;
         str = chr(key)
@@ -565,12 +577,19 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.fileid = fid
         self.filenow = os.path.join(self.folderName, self.filelists[fid])
         self.label_channel.setText(f'channel {fid+1} / {self.n_file}')
+        self.comboBox_channel.setCurrentIndex(fid)
         # self.textEdit_channel.setText(f'{fid+1}')
         self.file_loadfile()  # import the first file
+
+    def sw_gotochannel(self, fid):
+        self.filelists
+
     def load_folder(self):
         fs = os.listdir(self.folderName)
         fs.sort()
         self.filelists = [x for x in fs if x.startswith('waveforms')]
+        self.comboBox_channel.clear()
+        self.comboBox_channel.addItems(self.filelists)
         self.n_file = len(self.filelists)
         self.choosefile(0)
     def sw_load_folder(self):
@@ -597,11 +616,16 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.update_unit(units_predict)
     def sw_undo(self):
         if len(self.history_units) > 0:
-            units = self.history_units[-1]
+            units = self.history_units[-1].copy()
+            self.redo_units = self.data['units'].item().copy()
             self.history_units.pop()
             self.is_addhistory = False
             self.update_unit(units)
             self.is_addhistory = True
+    def sw_redo(self):
+        if len(self.redo_units) > 0:
+            self.update_unit(self.redo_units)
+            self.redo_units = []
 
 if __name__ == "__main__":
     import sys
