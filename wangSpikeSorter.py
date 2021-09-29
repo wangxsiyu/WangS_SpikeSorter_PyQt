@@ -580,10 +580,11 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.comboBox_channel.setCurrentIndex(fid)
         # self.textEdit_channel.setText(f'{fid+1}')
         self.file_loadfile()  # import the first file
-
     def sw_gotochannel(self, fid):
-        self.filelists
-
+        fnow = self.comboBox_channel.currentText()
+        xx = [x in fnow for x in self.filelists]
+        fid = np.where(xx)[0][0]
+        self.choosefile(fid)
     def load_folder(self):
         fs = os.listdir(self.folderName)
         fs.sort()
