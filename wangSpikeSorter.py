@@ -230,6 +230,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.graphicsView_pca.setBackground('w')
         self.graphicsView_raw.setBackground('w')
         self.graphicsView_units.setBackground('w')
+        self.graphicsView_pca.setMenuEnabled(False)
+        self.graphicsView_raw.setMenuEnabled(False)
         # set up lines
         # -- raw
         self.raw_emptyplot = self.graphicsView_raw.plot(x=[], y=[], pen=pg.mkPen("m"))
