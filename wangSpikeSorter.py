@@ -268,6 +268,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         for uj in range(5):
             for ui in range(self.n_maxunit):
                 te = self.graphicsView_units.addPlot(row = uj, col = ui)
+                # te.setAspectLocked(lock=False)
+                # self.graphicsView_units.addViewBox(row = uj, col = ui)
                 self.units_axes.append(te)
         self.units_axes = np.reshape(self.units_axes, (-1,self.n_maxunit))
     def setup_reset(self):
@@ -388,10 +390,17 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.points_selected.setData(x=pc[idp, 0], y=pc[idp, 1])
         else:
             self.points_selected.setData(x=[], y=[])
+
+        self.graphicsView_pca.setLabel('bottom',f'{self.comboBox_PC1.currentText()}')
+        self.graphicsView_pca.setLabel('left',f'{self.comboBox_PC2.currentText()}')
     def plt_raw(self):
         idp = self.get_selected()
         waves = self.data['waves'].item().copy()
         units = self.data['units'].item().copy()
+        str = f"unsorted: {np.mean(units == 0)*100:.2f}%, {np.sum(units == 0)}/{len(units)}"
+        self.graphicsView_raw.setTitle(str)
+        self.graphicsView_raw.setLabel('left','Voltage')
+        self.graphicsView_raw.setLabel('bottom','Time')
         for ui in range(self.n_maxunit):
             tid = (units == ui).squeeze()
             if len(idp) > 0:
@@ -420,24 +429,53 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def plt_units(self):
         waves = self.data['waves'].item().copy()
         units = self.data['units'].item().copy()
+        trg = np.array([np.infty, -np.infty])
         for i in range(self.n_maxunit):
             if i == self.unit_now:
                 self.units_axes[0, i].getViewBox().setBackgroundColor("m")
             else:
                 self.units_axes[0, i].getViewBox().setBackgroundColor("w")
             if self.is_locked[i]:
-                self.units_axes[0, i].showGrid(y = True)
+                str_L = 'Locked'
+                self.units_axes[1,i].setTitle(str_L)
             else:
-                self.units_axes[0, i].showGrid(y = False)
-            if np.any(units == i):
+                str_L = ''
+                self.units_axes[1,i].setTitle(str_L)
+            n_uniti = np.sum(units == i)
+            n_unitall = len(units)
+            str = f"{n_uniti/n_unitall*100:.1f}%"
+            # str = str + str_L
+            self.units_axes[0, i].setTitle(str) # fake title
+            if n_uniti > 0:
                 tid = (units == i).squeeze()
+                # lines
                 lines = MultiLine()
                 lines.mysetData(waves[tid,])
                 lines.setcolor(self.color_unit[i])
                 self.units_axes[0, i].clear()
                 self.units_axes[0, i].addItem(lines)
+                self.units_axes[0, i].autoRange()
+                te = self.units_axes[0, i].getAxis('left').range
+                if te[1] > trg[1]:
+                    trg[1] = te[1]
+                if te[0] < trg[0]:
+                    trg[0] = te[0]
+                # ITI
+                st = self.data['spikeTimes'].item().squeeze()
+                hst_y, hst_x = np.histogram(np.diff(st[tid]), bins=np.linspace(0, 100, 20))
+                thst = pg.PlotCurveItem(hst_x, hst_y, stepMode=True, fillLevel=0, brush=pg.mkBrush(self.color_unit[i]))
+                self.units_axes[1, i].addItem(thst)
+                # timing vs firing rate
+                hst_y, hst_x = np.histogram(st[tid]/np.max(st), bins=np.linspace(0, 1, 100))
+                thst = pg.PlotCurveItem(hst_x, hst_y, stepMode=True, fillLevel=0, brush=pg.mkBrush(self.color_unit[i]))
+                self.units_axes[2, i].addItem(thst)
             else:
                 self.units_axes[0, i].clear()
+                self.units_axes[1, i].clear()
+                self.units_axes[2, i].clear()
+
+        for i in range(self.n_maxunit):
+            self.units_axes[0, i].setYRange(trg[0], trg[1])
     def keyPressEvent(self, event):
         key = event.key()
         if (key == 16777249) | (key == 16777248):
