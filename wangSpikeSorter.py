@@ -276,7 +276,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.comboBox_PC1.setCurrentIndex(0)
         self.comboBox_PC2.setCurrentIndex(1)
         self.sw_combobox_pc()
-        self.is_addpoint = 0
+        self.set_addpoint(0)
         self.idx_selected = []
         self.idx_selected_temp = []
         self.pca_polygon_vertices = []
@@ -286,7 +286,15 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.redo_units = []
         self.is_addhistory = True
         self.is_locked = np.zeros(self.n_maxunit) == 1
-        cursor = QtCore.Qt.ArrowCursor
+    def set_addpoint(self, pt):
+        self.is_addpoint = pt
+        if pt == 0:
+            cursor = QtCore.Qt.ArrowCursor
+        else:
+            if pt == 1:
+                cursor = QtCore.Qt.CrossCursor  # QCursor
+            else:
+                cursor = QtCore.Qt.IBeamCursor # QCursor
         self.graphicsView_pca.setCursor(cursor)
         self.graphicsView_raw.setCursor(cursor)
     def file_loadfile(self):
@@ -446,13 +454,16 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             str = f"{n_uniti/n_unitall*100:.1f}%"
             # str = str + str_L
             self.units_axes[0, i].setTitle(str) # fake title
+            self.units_axes[0, i].clear()
+            self.units_axes[1, i].clear()
+            self.units_axes[2, i].clear()
+            self.units_axes[3, i].clear()
             if n_uniti > 0:
                 tid = (units == i).squeeze()
                 # lines
                 lines = MultiLine()
                 lines.mysetData(waves[tid,])
                 lines.setcolor(self.color_unit[i])
-                self.units_axes[0, i].clear()
                 self.units_axes[0, i].addItem(lines)
                 self.units_axes[0, i].autoRange()
                 te = self.units_axes[0, i].getAxis('left').range
@@ -465,32 +476,41 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 hst_y, hst_x = np.histogram(np.diff(st[tid]), bins=np.linspace(0, 100, 20))
                 thst = pg.PlotCurveItem(hst_x, hst_y, stepMode=True, fillLevel=0, brush=pg.mkBrush(self.color_unit[i]))
                 self.units_axes[1, i].addItem(thst)
+                self.units_axes[1, i].autoRange()
                 # timing vs firing rate
-                hst_y, hst_x = np.histogram(st[tid]/np.max(st), bins=np.linspace(0, 1, 100))
-                thst = pg.PlotCurveItem(hst_x, hst_y, stepMode=True, fillLevel=0, brush=pg.mkBrush(self.color_unit[i]))
+                ty, tx = np.histogram(st[tid]/np.max(st), bins=np.linspace(0, 1, 100))
+                tx = (tx[1:] + tx[:-1]) / 2
+                thst = pg.PlotCurveItem(tx, ty, pen=pg.mkPen(self.color_unit[i]))
                 self.units_axes[2, i].addItem(thst)
-            else:
-                self.units_axes[0, i].clear()
-                self.units_axes[1, i].clear()
-                self.units_axes[2, i].clear()
-
+                self.units_axes[2, i].autoRange()
+                # distance from clusters
+                dst = self.dist_waves
+                bin = np.linspace(0, np.mean(dst[tid,i]) * 2, 100)
+                ldsts = np.zeros((self.n_maxunit, len(bin)-1))
+                for j in range(self.n_maxunit):
+                    ty, tx = np.histogram(dst[units == j, i], bins = bin)
+                    tx = (tx[1:] + tx[:-1])/2
+                    tl = pg.PlotCurveItem(tx, ty, pen=pg.mkPen(self.color_unit[j]))
+                    self.units_axes[3, i].addItem(tl)
+                self.units_axes[3, i].autoRange()
         for i in range(self.n_maxunit):
             self.units_axes[0, i].setYRange(trg[0], trg[1])
     def keyPressEvent(self, event):
         key = event.key()
-        if (key == 16777249) | (key == 16777248):
-            print('ctr command pressed')
-            return;
-        str = chr(key)
-        if str.isdigit():
-            keyint = np.int64(str)
-            if (keyint >=0) & (keyint <self.n_maxunit):
-                self.unit_now = keyint
-                self.plt_all()
-        if str.isalpha():
-            if str == 'L':
-                self.is_locked[self.unit_now] = ~self.is_locked[self.unit_now]
-                self.plt_units()
+        if key < 200: #ascii codes range
+            str = chr(key)
+            if str.isdigit():
+                keyint = np.int64(str)
+                if (keyint >=0) & (keyint <self.n_maxunit):
+                    self.unit_now = keyint
+                    self.plt_all()
+            if str.isalpha():
+                if str == 'L':
+                    self.is_locked[self.unit_now] = ~self.is_locked[self.unit_now]
+                    self.plt_units()
+                if str == 'A':
+                    self.update_selected()
+                    self.set_addpoint(0)
     def get_lockedlines(self):
         units = self.data['units'].item()
         out = np.zeros_like(units)
@@ -523,32 +543,23 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         sio.savemat(self.filenow, mdict)
         self.data['waves'].itemset(waves)
     def sw_addpoint(self):
-        cursor = QtCore.Qt.CrossCursor # QCursor
-        self.graphicsView_pca.setCursor(cursor)
-        self.graphicsView_raw.setCursor(cursor)
         self.idx_selected_temp = []
         self.pca_polygon_vertices = []
         self.raw_line_vertices = []
-        self.is_addpoint = 1
+        self.set_addpoint(1)
     def sw_removepoint(self):
-        cursor = QtCore.Qt.IBeamCursor # QCursor
-        self.graphicsView_pca.setCursor(cursor)
-        self.graphicsView_raw.setCursor(cursor)
         self.idx_selected_temp = []
         self.pca_polygon_vertices = []
         self.raw_line_vertices = []
-        self.is_addpoint = -1
+        self.set_addpoint(-1)
     def sw_confirm(self):
         self.update_selected()
         idp = self.idx_selected
-        self.is_addpoint = 0
+        self.set_addpoint(0)
         self.idx_selected = []
         self.idx_selected_temp = []
         self.raw_line_vertices = []
         self.pca_polygon_vertices = []
-        cursor = QtCore.Qt.ArrowCursor
-        self.graphicsView_pca.setCursor(cursor)
-        self.graphicsView_raw.setCursor(cursor)
         # units = self.data['units'].item()
         if (len(idp) > 0) & np.any(idp):
             # self.is_addhistory = False
@@ -598,7 +609,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.assist_addpointsinline(pts)
             if event.button() == 2:
                 self.update_selected()
-                self.is_addpoint = 0
+                self.set_addpoint(0)
     def mouse_clicked_pca(self, event):
         if self.is_addpoint != 0:
             p = self.graphicsView_pca.plotItem.vb.mapSceneToView(event.scenePos())
@@ -608,7 +619,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.assist_addpointsinpolygon(pts)
             if event.button() == 2:
                 self.update_selected()
-                self.is_addpoint = 0
+                self.set_addpoint(0)
     def assist_addpointsinpolygon(self, pts):
         poly_path = mplPath.Path(pts)
         pc = self.pc_now
@@ -620,16 +631,32 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         nl = waves.shape[0]
         npixel = waves.shape[1]
         idp = np.repeat(False, nl)
-        idxs = self.idx_selected
-        for i in range(nl):
-            # if (self.is_addpoint == 1) & (len(idxs)>0) & idxs[i]:
-            #     idp[i] = True
-            # else:
-            #     if (self.is_addpoint == -1) & (len(idxs)>0) & ~idxs[i]:
-            #         idp[i] = True
-            #     else:
-            te = intersection(pts[:, 0], pts[:, 1], list(range(npixel)),waves[i,])
-            idp[i] = (te[0].shape[0] > 0)
+        # for i in range(nl):
+        #     te = intersection(pts[:, 0], pts[:, 1], list(range(npixel)),waves[i,])
+        #     idp[i] = (te[0].shape[0] > 0)
+        x_coords, y_coords = zip(*pts)
+        A = np.vstack([x_coords, np.ones(len(x_coords))]).T
+        m, c = np.linalg.lstsq(A, y_coords, rcond = None)[0]
+        xx = np.sort(x_coords)
+        xs = range(int(np.floor(xx[1])- np.ceil(xx[0]))) + np.ceil(xx[0])
+        if xs[0] != xx[0]:
+            xs = np.append(xx[0],xs)
+        if xs[-1] != xx[1]:
+            xs = np.append(xs, xx[1])
+        xs = xs[(xs >= 1) & (xs <= waves.shape[1])]
+        ys = xs * m + c
+        if len(xs) > 0:
+            y2 = np.zeros((waves.shape[0], len(xs)))
+            for i in range(len(xs)):
+                t1 = int(np.floor(xs[i]))
+                t2 = int(np.ceil(xs[i]))
+                if t1 == t2:
+                    y2[:, i] = waves[:, t1 - 1]
+                else:
+                    tr = (xs[i] - t1)/(t2-t1)
+                    y2[:, i] = waves[:, t1] * (1-tr) + waves[:, t2] * tr
+            dy = y2 - ys
+            idp = np.any(dy > 0, axis=1) & np.any(dy < 0, axis = 1)
         self.idx_selected_temp = idp
         self.plt_all()
     def choosefile(self, fid):
