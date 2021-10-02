@@ -73,6 +73,9 @@ class Ui_MainWindow(object):
         self.pushButton_Remove = QtWidgets.QPushButton(self.group_PCA)
         self.pushButton_Remove.setGeometry(QtCore.QRect(360, 390, 113, 32))
         self.pushButton_Remove.setObjectName("pushButton_Remove")
+        self.pushButton_noise = QtWidgets.QPushButton(self.group_PCA)
+        self.pushButton_noise.setGeometry(QtCore.QRect(530, 390, 113, 32))
+        self.pushButton_noise.setObjectName("pushButton_noise")
         self.pushButton_Confirm = QtWidgets.QPushButton(self.group_PCA)
         self.pushButton_Confirm.setGeometry(QtCore.QRect(640, 390, 113, 32))
         self.pushButton_Confirm.setObjectName("pushButton_Confirm")
@@ -93,7 +96,7 @@ class Ui_MainWindow(object):
         self.pushButton_reset.setGeometry(QtCore.QRect(170, 390, 81, 32))
         self.pushButton_reset.setObjectName("pushButton_reset")
         self.group_Methods = QtWidgets.QGroupBox(self.centralwidget)
-        self.group_Methods.setGeometry(QtCore.QRect(10, 440, 761, 211))
+        self.group_Methods.setGeometry(QtCore.QRect(10, 440, 261, 211))
         self.group_Methods.setObjectName("group_Methods")
         self.comboBox_ClusterMethods = QtWidgets.QComboBox(self.group_Methods)
         self.comboBox_ClusterMethods.setGeometry(QtCore.QRect(10, 40, 204, 26))
@@ -131,6 +134,15 @@ class Ui_MainWindow(object):
         self.pushButton_nextchannel = QtWidgets.QPushButton(self.frame_Channel)
         self.pushButton_nextchannel.setGeometry(QtCore.QRect(500, 10, 113, 32))
         self.pushButton_nextchannel.setObjectName("pushButton_nextchannel")
+        self.groupBox_side = QtWidgets.QGroupBox(self.centralwidget)
+        self.groupBox_side.setGeometry(QtCore.QRect(280, 440, 491, 211))
+        self.groupBox_side.setObjectName("groupBox_side")
+        self.graphicsView_side1 = PlotWidget(self.groupBox_side)
+        self.graphicsView_side1.setGeometry(QtCore.QRect(0, 20, 241, 191))
+        self.graphicsView_side1.setObjectName("graphicsView_side1")
+        self.graphicsView_side2 = PlotWidget(self.groupBox_side)
+        self.graphicsView_side2.setGeometry(QtCore.QRect(240, 21, 251, 191))
+        self.graphicsView_side2.setObjectName("graphicsView_side2")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1410, 24))
@@ -173,6 +185,7 @@ class Ui_MainWindow(object):
         self.pushButton_Add.setText(_translate("MainWindow", "add point"))
         self.pushButton_Remove.setText(_translate("MainWindow", "remove point"))
         self.pushButton_Confirm.setText(_translate("MainWindow", "Confirm"))
+        self.pushButton_noise.setText(_translate("MainWindow", "Noise"))
         # self.checkBox_deselect.setText(_translate("MainWindow", "de-select"))
         # self.checkBox_useasmodel.setText(_translate("MainWindow", "use as model"))
         self.pushButton_reset.setText(_translate("MainWindow", "Reset"))
@@ -184,6 +197,7 @@ class Ui_MainWindow(object):
         # self.pushButton_gotochannel.setText(_translate("MainWindow", "Go to Channel"))
         self.pushButton_previouschannel.setText(_translate("MainWindow", "Previous"))
         self.pushButton_nextchannel.setText(_translate("MainWindow", "Next Channel"))
+        self.groupBox_side.setTitle(_translate("MainWindow", "Side Plots"))
         self.menuFile.setTitle(_translate("MainWindow", "File"))
         self.menuEdit.setTitle(_translate("MainWindow", "Edit"))
         self.actionLoadFolder.setText(_translate("MainWindow", "Load folder"))
@@ -217,6 +231,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
         self.pushButton_Confirm.clicked.connect(self.sw_confirm)
+        self.pushButton_noise.clicked.connect(self.sw_noise)
         self.pushButton_nextchannel.clicked.connect(self.sw_nextchannel)
         self.pushButton_previouschannel.clicked.connect(self.sw_previouschannel)
         self.pushButton_sortall.clicked.connect(self.sw_sortall)
@@ -230,8 +245,12 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.graphicsView_pca.setBackground('w')
         self.graphicsView_raw.setBackground('w')
         self.graphicsView_units.setBackground('w')
+        self.graphicsView_side1.setBackground('w')
+        self.graphicsView_side2.setBackground('w')
         self.graphicsView_pca.setMenuEnabled(False)
         self.graphicsView_raw.setMenuEnabled(False)
+        self.graphicsView_side1.setMenuEnabled(False)
+        self.graphicsView_side2.setMenuEnabled(False)
         # set up lines
         # -- raw
         self.raw_emptyplot = self.graphicsView_raw.plot(x=[], y=[], pen=pg.mkPen("m"))
@@ -327,11 +346,14 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         waves = self.data['waves'].item().copy()
         npix = waves.shape[1]
         av = np.zeros((self.n_maxunit, npix))
+        sd = np.zeros((self.n_maxunit, npix))
         for i in range(self.n_maxunit):
             tid = (units == i).squeeze()
             if np.any(tid):
                 av[i,] = np.mean(waves[tid,], axis = 0)
+                sd[i,] = np.std(waves[tid,], axis = 0)#/np.sqrt(np.sum(tid))
         self.av_waves = av
+        self.sd_waves = sd
         dist = np.zeros((waves.shape[0], self.n_maxunit))
         for i in range(self.n_maxunit):
             dist[:,i] = np.mean((waves - av[i,])**2, axis = 1)
@@ -382,6 +404,36 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.plt_raw()
         self.plt_selectiontool()
         self.plt_units()
+        self.plt_noise()
+    def plt_noise(self):
+        waves = self.data['waves'].item().copy()
+        units = self.data['units'].item().copy()
+
+        self.graphicsView_side1.clear()
+        self.graphicsView_side1.setLabel('left', 'Voltage')
+        self.graphicsView_side1.setLabel('bottom', 'Time')
+        for i in range(self.n_maxunit):
+            # special plot - average
+            cv1 = pg.PlotCurveItem(self.av_waves[i,] + self.sd_waves[i,])
+            cv2 = pg.PlotCurveItem(self.av_waves[i,] - self.sd_waves[i,])
+            tl = pg.FillBetweenItem(curve1=cv1, curve2=cv2, brush=pg.mkBrush(self.color_unit[i]))
+            # tl = pg.PlotCurveItem(self.av_waves[i,], fill = -0.3, ,  pen=pg.mkPen(self.color_unit[i]))
+            self.graphicsView_side1.addItem(tl)
+            str = f"sorted: {np.mean(units > 0) * 100:.2f}%, {np.sum(units > 0)}/{len(units)}"
+            self.graphicsView_side1.setTitle(str)
+
+        self.graphicsView_side2.clear()
+        str = f"unsorted: {np.mean(units == -1)*100:.2f}%, {np.sum(units == -1)}/{len(units)}"
+        self.graphicsView_side2.setTitle(str)
+        self.graphicsView_side2.setLabel('left', 'Voltage')
+        self.graphicsView_side2.setLabel('bottom', 'Time')
+        tid = (units == -1).squeeze()
+        if (any(tid)):
+            tl = MultiLine()
+            tl.mysetData(waves[tid,])
+            tl.setcolor(pg.mkPen('k'))
+            self.graphicsView_side2.addItem(tl)
+
     def plt_pca(self):
         units = self.data['units'].item().copy()
         pc = self.pc_now
@@ -405,8 +457,6 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         idp = self.get_selected()
         waves = self.data['waves'].item().copy()
         units = self.data['units'].item().copy()
-        str = f"unsorted: {np.mean(units == 0)*100:.2f}%, {np.sum(units == 0)}/{len(units)}"
-        self.graphicsView_raw.setTitle(str)
         self.graphicsView_raw.setLabel('left','Voltage')
         self.graphicsView_raw.setLabel('bottom','Time')
         for ui in range(self.n_maxunit):
@@ -566,6 +616,17 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.update_selectedunit(idp, self.unit_now)
             # self.is_addhistory = True
         # self.update_unit(units)
+
+    def sw_noise(self):
+            self.update_selected()
+            idp = self.idx_selected
+            self.set_addpoint(0)
+            self.idx_selected = []
+            self.idx_selected_temp = []
+            self.raw_line_vertices = []
+            self.pca_polygon_vertices = []
+            if (len(idp) > 0) & np.any(idp):
+                self.update_selectedunit(idp, -1)
     def update_selected(self):
         idl = self.get_lockedlines()
         tmp = self.idx_selected_temp

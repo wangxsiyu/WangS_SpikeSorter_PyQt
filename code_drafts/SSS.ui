@@ -216,7 +216,7 @@
      <rect>
       <x>10</x>
       <y>440</y>
-      <width>761</width>
+      <width>261</width>
       <height>211</height>
      </rect>
     </property>
@@ -345,6 +345,39 @@
      </property>
      <property name="text">
       <string>Next Channel</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QGroupBox" name="groupBox">
+    <property name="geometry">
+     <rect>
+      <x>280</x>
+      <y>440</y>
+      <width>491</width>
+      <height>211</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>GroupBox</string>
+    </property>
+    <widget class="PlotWidget" name="graphicsView">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>20</y>
+       <width>241</width>
+       <height>191</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="PlotWidget" name="graphicsView_2">
+     <property name="geometry">
+      <rect>
+       <x>240</x>
+       <y>21</y>
+       <width>251</width>
+       <height>191</height>
+      </rect>
      </property>
     </widget>
    </widget>
