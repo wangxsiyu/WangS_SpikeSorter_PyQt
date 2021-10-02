@@ -627,18 +627,24 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.pca_polygon_vertices = []
             if (len(idp) > 0) & np.any(idp):
                 self.update_selectedunit(idp, -1)
-    def update_selected(self):
+    def select_locked(self):
         idl = self.get_lockedlines()
+        if len(self.idx_selected) > 0:
+            self.idx_selected = self.idx_selected & ~idl
+        if len(self.idx_selected_temp) > 0:
+            self.idx_selected_temp = self.idx_selected_temp & ~idl
+
+    def update_selected(self):
         tmp = self.idx_selected_temp
         if (len(tmp) > 0):
             if len(self.idx_selected) > 0:
                 if self.is_addpoint == 1:
-                    self.idx_selected = (self.idx_selected | tmp) & ~idl
+                    self.idx_selected = (self.idx_selected | tmp)
                 else:
-                    self.idx_selected = (self.idx_selected & ~tmp) & ~idl
+                    self.idx_selected = (self.idx_selected & ~tmp)
             else:
                 if self.is_addpoint == 1:
-                    self.idx_selected = tmp & ~idl
+                    self.idx_selected = tmp
                 else:
                     self.idx_selected = []
         self.idx_selected_temp = []
@@ -686,6 +692,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         pc = self.pc_now
         idp = poly_path.contains_points(pc)
         self.idx_selected_temp = idp
+        self.select_locked()
         self.plt_all()
     def assist_addpointsinline(self, pts):
         waves = self.data['waves'].item().copy()
@@ -696,29 +703,48 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         #     te = intersection(pts[:, 0], pts[:, 1], list(range(npixel)),waves[i,])
         #     idp[i] = (te[0].shape[0] > 0)
         x_coords, y_coords = zip(*pts)
-        A = np.vstack([x_coords, np.ones(len(x_coords))]).T
-        m, c = np.linalg.lstsq(A, y_coords, rcond = None)[0]
         xx = np.sort(x_coords)
-        xs = range(int(np.floor(xx[1])- np.ceil(xx[0]))) + np.ceil(xx[0])
-        if xs[0] != xx[0]:
-            xs = np.append(xx[0],xs)
-        if xs[-1] != xx[1]:
-            xs = np.append(xs, xx[1])
-        xs = xs[(xs >= 1) & (xs <= waves.shape[1])]
-        ys = xs * m + c
-        if len(xs) > 0:
-            y2 = np.zeros((waves.shape[0], len(xs)))
-            for i in range(len(xs)):
-                t1 = int(np.floor(xs[i]))
-                t2 = int(np.ceil(xs[i]))
+        yy = np.sort(y_coords)
+        if np.diff(xx) == 0:
+            xx = np.unique(xx)[0]
+            if (xx >= 1) & (xx <= waves.shape[1]):
+                t1 = int(np.floor(xx))
+                t2 = int(np.ceil(xx))
                 if t1 == t2:
-                    y2[:, i] = waves[:, t1 - 1]
+                    y2 = waves[:, t1 - 1]
                 else:
-                    tr = (xs[i] - t1)/(t2-t1)
-                    y2[:, i] = waves[:, t1] * (1-tr) + waves[:, t2] * tr
-            dy = y2 - ys
-            idp = np.any(dy > 0, axis=1) & np.any(dy < 0, axis = 1)
+                    tr = (xx - t1) / (t2 - t1)
+                    y2 = waves[:, t1] * (1 - tr) + waves[:, t2] * tr
+                idp = (y2 >= yy[0]) & (y2 <= yy[1])
+            else:
+                idp = []
+        else:
+            A = np.vstack([x_coords, np.ones(len(x_coords))]).T
+            m, c = np.linalg.lstsq(A, y_coords, rcond = None)[0]
+            xs = range(int(np.floor(xx[1])- np.ceil(xx[0]))) + np.ceil(xx[0])
+            if len(xs) == 0:
+                xs = xx
+            else:
+                if xs[0] != xx[0]:
+                    xs = np.append(xx[0],xs)
+                if xs[-1] != xx[1]:
+                    xs = np.append(xs, xx[1])
+            xs = xs[(xs >= 1) & (xs <= waves.shape[1])]
+            ys = xs * m + c
+            if len(xs) > 0:
+                y2 = np.zeros((waves.shape[0], len(xs)))
+                for i in range(len(xs)):
+                    t1 = int(np.floor(xs[i]))
+                    t2 = int(np.ceil(xs[i]))
+                    if t1 == t2:
+                        y2[:, i] = waves[:, t1 - 1]
+                    else:
+                        tr = (xs[i] - t1)/(t2-t1)
+                        y2[:, i] = waves[:, t1] * (1-tr) + waves[:, t2] * tr
+                dy = y2 - ys
+                idp = np.any(dy > 0, axis=1) & np.any(dy < 0, axis = 1)
         self.idx_selected_temp = idp
+        self.select_locked()
         self.plt_all()
     def choosefile(self, fid):
         self.fileid = fid
