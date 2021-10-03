@@ -42,7 +42,6 @@ class Dialog_CombineChannel(QDialog):  # Inheritance of the QDialog class
         self.choice = 0
     def getInfo(self):  # Defines the method of obtaining user input data
         return  self.choice, self.c1.currentText(), self.c2.currentText()
-
 class MultiLine(pg.QtGui.QGraphicsPathItem):
     def __init__(self):
         self.path = QtGui.QPainterPath()
@@ -101,16 +100,19 @@ class Ui_MainWindow(object):
         self.comboBox_PC2.addItem("")
         self.comboBox_PC2.addItem("")
         self.pushButton_Add = QtWidgets.QPushButton(self.group_PCA)
-        self.pushButton_Add.setGeometry(QtCore.QRect(250, 390, 113, 32))
+        self.pushButton_Add.setGeometry(QtCore.QRect(250, 390, 81, 32))
         self.pushButton_Add.setObjectName("pushButton_Add")
         self.pushButton_Remove = QtWidgets.QPushButton(self.group_PCA)
-        self.pushButton_Remove.setGeometry(QtCore.QRect(360, 390, 113, 32))
+        self.pushButton_Remove.setGeometry(QtCore.QRect(330, 390, 81, 32))
         self.pushButton_Remove.setObjectName("pushButton_Remove")
+        self.pushButton_resettemp = QtWidgets.QPushButton(self.group_PCA)
+        self.pushButton_resettemp.setGeometry(QtCore.QRect(410, 390, 81, 32))
+        self.pushButton_resettemp.setObjectName("pushButton_resettemp")
         self.pushButton_noise = QtWidgets.QPushButton(self.group_PCA)
-        self.pushButton_noise.setGeometry(QtCore.QRect(530, 390, 113, 32))
+        self.pushButton_noise.setGeometry(QtCore.QRect(590, 390, 81, 32))
         self.pushButton_noise.setObjectName("pushButton_noise")
         self.pushButton_Confirm = QtWidgets.QPushButton(self.group_PCA)
-        self.pushButton_Confirm.setGeometry(QtCore.QRect(640, 390, 113, 32))
+        self.pushButton_Confirm.setGeometry(QtCore.QRect(670, 390, 81, 32))
         self.pushButton_Confirm.setObjectName("pushButton_Confirm")
         # self.checkBox_deselect = QtWidgets.QCheckBox(self.group_PCA)
         # self.checkBox_deselect.setGeometry(QtCore.QRect(490, 380, 87, 20))
@@ -208,6 +210,9 @@ class Ui_MainWindow(object):
         self.SqueezeChannels = QtWidgets.QAction(MainWindow)
         self.SqueezeChannels.setObjectName("SqueezeChannels")
         self.menuFunction.addAction(self.SqueezeChannels)
+        self.RemovefromChannel = QtWidgets.QAction(MainWindow)
+        self.RemovefromChannel.setObjectName("RemovefromChannel")
+        self.menuFunction.addAction(self.RemovefromChannel)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuEdit.menuAction())
         self.menubar.addAction(self.menuFunction.menuAction())
@@ -228,7 +233,8 @@ class Ui_MainWindow(object):
         self.comboBox_PC2.setItemText(2, _translate("MainWindow", "PC3"))
         self.comboBox_PC2.setItemText(3, _translate("MainWindow", "PC4"))
         self.pushButton_Add.setText(_translate("MainWindow", "add point"))
-        self.pushButton_Remove.setText(_translate("MainWindow", "remove point"))
+        self.pushButton_Remove.setText(_translate("MainWindow", "remove"))
+        self.pushButton_resettemp.setText(_translate("MainWindow", "clear"))
         self.pushButton_Confirm.setText(_translate("MainWindow", "Confirm"))
         self.pushButton_noise.setText(_translate("MainWindow", "Noise"))
         # self.checkBox_deselect.setText(_translate("MainWindow", "de-select"))
@@ -258,7 +264,7 @@ class Ui_MainWindow(object):
         self.RemoveChannel.setText(_translate("MainWindow", "Remove Channel"))
         self.CombineChannels.setText(_translate("MainWindow", "Combine Channels"))
         self.SqueezeChannels.setText(_translate("MainWindow", "Squeeze Channels"))
-
+        self.RemovefromChannel.setText(_translate("MainWindow", "Remove from Channel"))
 class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent = None):
         QMainWindow.__init__(self, parent = parent)
@@ -279,9 +285,11 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.RemoveChannel.triggered.connect(self.sw_removechannel)
         self.CombineChannels.triggered.connect(self.sw_combinechannels)
         self.SqueezeChannels.triggered.connect(self.sw_squeezechannels)
+        self.RemovefromChannel.triggered.connect(self.sw_removefromchannel)
         self.pushButton_reset.clicked.connect(self.sw_reset)
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
+        self.pushButton_resettemp.clicked.connect(self.sw_cleartemp)
         self.pushButton_Confirm.clicked.connect(self.sw_confirm)
         self.pushButton_noise.clicked.connect(self.sw_noise)
         self.pushButton_nextchannel.clicked.connect(self.sw_nextchannel)
@@ -347,16 +355,18 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.comboBox_PC1.setCurrentIndex(0)
         self.comboBox_PC2.setCurrentIndex(1)
         self.sw_combobox_pc()
-        self.set_addpoint(0)
         self.idx_selected = []
         self.idx_selected_temp = []
-        self.pca_polygon_vertices = []
-        self.raw_line_vertices = []
+        self.reset_selectiontool(0)
         self.unit_now = 0
         self.history_units = []
         self.history_locked = []
+        self.history_idx = []
+        self.history_idxtemp = []
         self.redo_units = []
         self.redo_locked = []
+        self.redo_idx = []
+        self.redo_idxtemp = []
         self.is_addhistory = True
         self.is_locked = np.zeros(self.n_maxunit) == 1
     def set_addpoint(self, pt):
@@ -387,6 +397,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.data['units'].itemset(units)
         waves = self.data['waves'].item().copy()
         self.data['waves'].itemset(waves.T)
+        self.addhistory()
     def comp_setup(self):
         # compute PCA
         waves = self.data['waves'].item().copy()
@@ -489,7 +500,6 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             tl.mysetData(waves[tid,])
             tl.setcolor(pg.mkPen('k'))
             self.graphicsView_side2.addItem(tl)
-
     def plt_pca(self):
         units = self.data['units'].item().copy()
         pc = self.pc_now
@@ -540,6 +550,11 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.raw_path.setData(x=pts[:, 0], y=pts[:, 1])
         else:
             self.raw_path.setData(x = [], y = [])
+    def reset_selectiontool(self, option = None):
+        self.pca_polygon_vertices = []
+        self.raw_line_vertices = []
+        if ~(option is None):
+            self.set_addpoint(option)
     def plt_locked(self):
         for i in range(self.n_maxunit):
             if self.is_locked[i]:
@@ -605,6 +620,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.units_axes[0, i].setYRange(trg[0], trg[1])
     def keyPressEvent(self, event):
         key = event.key()
+        if self.is_loaddata == 0:
+            return
         if key < 200: #ascii codes range
             str = chr(key)
             if str.isdigit():
@@ -615,6 +632,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             if str.isalpha():
                 if str == 'L':
                     self.is_locked[self.unit_now] = ~self.is_locked[self.unit_now]
+                    self.select_locked()
                     self.plt_locked()
                 if str == 'A':
                     self.update_selected()
@@ -626,16 +644,29 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             if self.is_locked[i]:
                 out[units == i] = 1
         return(out == 1)
-    def update_unit(self, units, locked = []):
+    def addhistory(self):
         if self.is_addhistory:
-            self.history_units.append(self.data['units'].item())
-            self.history_locked.append(self.is_locked)
+            self.history_units.append(self.data['units'].item().copy())
+            self.history_locked.append(self.is_locked.copy())
+            self.history_idx.append(self.idx_selected.copy())
+            self.history_idxtemp.append(self.idx_selected_temp.copy())
+            print(f"add history, {len(self.history_units)}")
+    def update_unit(self, units, locked = [], idselect = [], idtemp = [], isoverwrite = 0):
         if len(locked) == 0:
             idx = self.get_lockedlines()
-            units[idx] = self.data['units'].item()[idx]
+            units[idx] = self.data['units'].item().copy()[idx]
         else:
             self.is_locked = locked
+        if (len(idselect) > 0) | isoverwrite == 1:
+            # print(idselect)
+            self.idx_selected = idselect
+        if (len(idtemp) > 0) | isoverwrite == 1:
+            # print(idtemp)
+            self.idx_selected_temp = idtemp
+        if (len(idselect) > 0) | (len(idtemp) > 0):
+            self.reset_selectiontool(0)
         self.data['units'].itemset(units)
+        self.addhistory()
         self.comp_default()
         self.plt_all()
         self.autosave()
@@ -651,39 +682,36 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         mdict['waveforms'] = self.data
         sio.savemat(self.filenow, mdict)
         self.data['waves'].itemset(waves)
+    def sw_cleartemp(self):
+        if len(self.idx_selected_temp) > 0:
+            self.idx_selected_temp = []
+            self.addhistory()
+        else:
+            if len(self.idx_selected) > 0:
+                self.idx_selected = []
+                self.addhistory()
+        self.reset_selectiontool(0)
+        self.plt_all()
     def sw_addpoint(self):
         self.idx_selected_temp = []
-        self.pca_polygon_vertices = []
-        self.raw_line_vertices = []
-        self.set_addpoint(1)
+        self.reset_selectiontool(1)
     def sw_removepoint(self):
         self.idx_selected_temp = []
-        self.pca_polygon_vertices = []
-        self.raw_line_vertices = []
-        self.set_addpoint(-1)
+        self.reset_selectiontool(-1)
     def sw_confirm(self):
         self.update_selected()
-        idp = self.idx_selected
-        self.set_addpoint(0)
+        idp = self.idx_selected.copy()
         self.idx_selected = []
         self.idx_selected_temp = []
-        self.raw_line_vertices = []
-        self.pca_polygon_vertices = []
-        # units = self.data['units'].item()
+        self.reset_selectiontool(0)
         if (len(idp) > 0) & np.any(idp):
-            # self.is_addhistory = False
             self.update_selectedunit(idp, self.unit_now)
-            # self.is_addhistory = True
-        # self.update_unit(units)
-
     def sw_noise(self):
             self.update_selected()
             idp = self.idx_selected
-            self.set_addpoint(0)
             self.idx_selected = []
             self.idx_selected_temp = []
-            self.raw_line_vertices = []
-            self.pca_polygon_vertices = []
+            self.reset_selectiontool(0)
             if (len(idp) > 0) & np.any(idp):
                 self.update_selectedunit(idp, -1)
     def select_locked(self):
@@ -692,21 +720,26 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.idx_selected = self.idx_selected & ~idl
         if len(self.idx_selected_temp) > 0:
             self.idx_selected_temp = self.idx_selected_temp & ~idl
-
     def update_selected(self):
-        tmp = self.idx_selected_temp
+        tmp = self.idx_selected_temp.copy()
+        isadd = 0
         if (len(tmp) > 0):
             if len(self.idx_selected) > 0:
                 if self.is_addpoint == 1:
                     self.idx_selected = (self.idx_selected | tmp)
+                    isadd = 1
                 else:
                     self.idx_selected = (self.idx_selected & ~tmp)
+                    isadd = 1
             else:
                 if self.is_addpoint == 1:
                     self.idx_selected = tmp
+                    isadd = 1
                 else:
                     self.idx_selected = []
         self.idx_selected_temp = []
+        if isadd:
+            self.addhistory()
         self.plt_all()
     def get_selected(self):
         idp = self.idx_selected
@@ -799,7 +832,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                         y2[:, i] = waves[:, t1 - 1]
                     else:
                         tr = (xs[i] - t1)/(t2-t1)
-                        y2[:, i] = waves[:, t1] * (1-tr) + waves[:, t2] * tr
+                        y2[:, i] = waves[:, t1 - 1] * (1-tr) + waves[:, t2 - 1] * tr
                 dy = y2 - ys
                 idp = np.any(dy > 0, axis=1) & np.any(dy < 0, axis = 1)
         self.idx_selected_temp = idp
@@ -848,21 +881,31 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             units_predict = dists_u.argmin(axis = 1) + 1
             self.update_unit(units_predict)
     def sw_undo(self):
-        if len(self.history_units) > 0:
-            units = self.history_units[-1].copy()
-            locked = self.history_locked[-1].copy()
+        print(f"undo - nlist:{len(self.history_units)}")
+        if len(self.history_units) > 1:
             self.redo_units = self.data['units'].item().copy()
-            self.redo_locked = self.is_locked
+            self.redo_locked = self.is_locked.copy()
+            self.redo_idx = self.idx_selected.copy()
+            self.redo_idxtemp = self.idx_selected_temp.copy()
             self.history_units.pop()
             self.history_locked.pop()
+            self.history_idx.pop()
+            self.history_idxtemp.pop()
+            units = self.history_units[-1].copy()
+            locked = self.history_locked[-1].copy()
+            idx = self.history_idx[-1].copy()
+            idxtemp = self.history_idxtemp[-1].copy()
             self.is_addhistory = False
-            self.update_unit(units, locked)
+            self.update_unit(units, locked, idx, idxtemp, 1)
             self.is_addhistory = True
     def sw_redo(self):
+        print(f"redo - nlist:{len(self.history_units)}")
         if len(self.redo_units) > 0:
-            self.update_unit(self.redo_units, self.redo_locked)
+            self.update_unit(self.redo_units.copy(), self.redo_locked.copy(), self.redo_idx.copy(), self.redo_idxtemp.copy(), 1)
             self.redo_units = []
             self.redo_locked = []
+            self.redo_idx = []
+            self.redo_idxtemp = []
     def sw_removechannel(self):
         unow = self.unit_now
         self.is_locked[unow] = False
@@ -900,6 +943,17 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 else:
                     islocked[i] = False
             self.update_unit(units, islocked)
+    def sw_removefromchannel(self):
+        unow = self.unit_now
+        if unow > 0:
+            units = self.data['units'].item().copy()
+            idx_selected = units == unow
+            idx_selected_temp = []
+            units[idx_selected] = 0
+            locked = self.is_locked.copy()
+            locked[unow] = False
+            self.update_unit(units, locked, idx_selected, idx_selected_temp, 1)
+
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
