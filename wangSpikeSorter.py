@@ -1,5 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMainWindow
+from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMainWindow, QDialog, QPushButton, QComboBox
 from pyqtgraph import PlotWidget, GraphicsLayoutWidget, plot
 import pyqtgraph as pg
 import numpy as np
@@ -9,6 +9,39 @@ import matplotlib.path as mplPath
 from intersect import intersection
 import glob
 import os
+
+class Dialog_CombineChannel(QDialog):  # Inheritance of the QDialog class
+    def __init__(self, parent = None):
+        super(Dialog_CombineChannel, self).__init__(parent)
+        self.initUI()
+    def setupComboBox(self, nmax):
+        self.c1.addItems([str(x) for x in range(nmax)])
+        self.c1.setCurrentIndex(1)
+        self.c2.addItems([str(x) for x in range(nmax)])
+        self.c2.setCurrentIndex(2)
+    def initUI(self):
+        self.setWindowTitle("Combine channels")  # Window Title
+        self.setGeometry(400, 400, 200, 200)
+        self.c1 = QComboBox()  # Create a drop-down list box
+        self.c2 = QComboBox()
+        # for g in get_games():  # Add a selection to the drop-down list box (retrieved from a database query)
+        # self.game_item.addItem(g.name, g.id)
+        self.buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)  # window to create confirmation and cancellation buttons
+        self.glayout = QtWidgets.QGridLayout()
+        self.glayout.addWidget(self.c1, 0, 0)
+        self.glayout.addWidget(self.c2, 1, 0)
+        self.glayout.addWidget(self.buttons, 1, 1)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        self.accepted.connect(self.done_choose)
+        self.rejected.connect(self.cancel_choose)
+        self.setLayout(self.glayout)
+    def done_choose(self):
+        self.choice = 1
+    def cancel_choose(self):
+        self.choice = 0
+    def getInfo(self):  # Defines the method of obtaining user input data
+        return  self.choice, self.c1.currentText(), self.c2.currentText()
 
 class MultiLine(pg.QtGui.QGraphicsPathItem):
     def __init__(self):
@@ -419,7 +452,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         units = self.data['units'].item().copy()
         units = np.zeros(units.shape)
         units = np.int64(units)
-        self.update_unit(units)
+        islocked = np.zeros_like(self.is_locked) == 1
+        self.update_unit(units, islocked)
     def plt_all(self):
         self.plt_pca()
         self.plt_raw()
@@ -836,7 +870,19 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         units[units == unow] = 0
         self.update_unit(units)
     def sw_combinechannels(self):
-        1
+        dlg = Dialog_CombineChannel(self)
+        dlg.setupComboBox(self.n_maxunit)
+        if dlg.exec():
+            c, c1, c2 = dlg.getInfo()
+            if c == 1:
+                c1 = int(c1)
+                c2 = int(c2)
+                if c1 != c2:
+                    units = self.data['units'].item().copy()
+                    units[units == c2] = c1
+                    islocked = self.is_locked.copy()
+                    islocked[c2] = False
+                    self.update_unit(units, islocked)
     def sw_squeezechannels(self):
         units = self.data['units'].item().copy()
         ct = np.zeros(self.n_maxunit)
