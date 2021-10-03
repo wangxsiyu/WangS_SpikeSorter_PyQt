@@ -151,6 +151,8 @@ class Ui_MainWindow(object):
         self.menuFile.setObjectName("menuFile")
         self.menuEdit = QtWidgets.QMenu(self.menubar)
         self.menuEdit.setObjectName("menuEdit")
+        self.menuFunction = QtWidgets.QMenu(self.menubar)
+        self.menuFunction.setObjectName("menuFunction")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
         self.statusbar.setObjectName("statusbar")
@@ -164,8 +166,18 @@ class Ui_MainWindow(object):
         self.actionRedo = QtWidgets.QAction(MainWindow)
         self.actionRedo.setObjectName("actionRedo")
         self.menuEdit.addAction(self.actionRedo)
+        self.RemoveChannel = QtWidgets.QAction(MainWindow)
+        self.RemoveChannel.setObjectName("RemoveChannel")
+        self.menuFunction.addAction(self.RemoveChannel)
+        self.CombineChannels = QtWidgets.QAction(MainWindow)
+        self.CombineChannels.setObjectName("CombineChannels")
+        self.menuFunction.addAction(self.CombineChannels)
+        self.SqueezeChannels = QtWidgets.QAction(MainWindow)
+        self.SqueezeChannels.setObjectName("SqueezeChannels")
+        self.menuFunction.addAction(self.SqueezeChannels)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuEdit.menuAction())
+        self.menubar.addAction(self.menuFunction.menuAction())
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
@@ -200,6 +212,7 @@ class Ui_MainWindow(object):
         self.groupBox_side.setTitle(_translate("MainWindow", "Side Plots"))
         self.menuFile.setTitle(_translate("MainWindow", "File"))
         self.menuEdit.setTitle(_translate("MainWindow", "Edit"))
+        self.menuFunction.setTitle(_translate("MainWindow", "Function"))
         self.actionLoadFolder.setText(_translate("MainWindow", "Load folder"))
         self.actionLoadFolder.setStatusTip(_translate("MainWindow", "Load a folder"))
         self.actionLoadFolder.setShortcut(_translate("MainWindow", "Ctrl+O"))
@@ -209,6 +222,9 @@ class Ui_MainWindow(object):
         self.actionRedo.setText(_translate("MainWindow", "Redo"))
         self.actionRedo.setStatusTip(_translate("MainWindow", "Redo"))
         self.actionRedo.setShortcut(_translate("MainWindow", "Ctrl+Shift+Z"))
+        self.RemoveChannel.setText(_translate("MainWindow", "Remove Channel"))
+        self.CombineChannels.setText(_translate("MainWindow", "Combine Channels"))
+        self.SqueezeChannels.setText(_translate("MainWindow", "Squeeze Channels"))
 
 class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent = None):
@@ -227,6 +243,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.actionLoadFolder.triggered.connect(self.sw_load_folder)
         self.actionUndo.triggered.connect(self.sw_undo)
         self.actionRedo.triggered.connect(self.sw_redo)
+        self.RemoveChannel.triggered.connect(self.sw_removechannel)
+        self.CombineChannels.triggered.connect(self.sw_combinechannels)
+        self.SqueezeChannels.triggered.connect(self.sw_squeezechannels)
         self.pushButton_reset.clicked.connect(self.sw_reset)
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
@@ -302,7 +321,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.raw_line_vertices = []
         self.unit_now = 0
         self.history_units = []
+        self.history_locked = []
         self.redo_units = []
+        self.redo_locked = []
         self.is_addhistory = True
         self.is_locked = np.zeros(self.n_maxunit) == 1
     def set_addpoint(self, pt):
@@ -404,6 +425,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.plt_raw()
         self.plt_selectiontool()
         self.plt_units()
+        self.plt_locked()
         self.plt_noise()
     def plt_noise(self):
         waves = self.data['waves'].item().copy()
@@ -484,6 +506,14 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.raw_path.setData(x=pts[:, 0], y=pts[:, 1])
         else:
             self.raw_path.setData(x = [], y = [])
+    def plt_locked(self):
+        for i in range(self.n_maxunit):
+            if self.is_locked[i]:
+                str_L = 'Locked'
+                self.units_axes[1,i].setTitle(str_L)
+            else:
+                str_L = ''
+                self.units_axes[1,i].setTitle(str_L)
     def plt_units(self):
         waves = self.data['waves'].item().copy()
         units = self.data['units'].item().copy()
@@ -493,12 +523,6 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[0, i].getViewBox().setBackgroundColor("m")
             else:
                 self.units_axes[0, i].getViewBox().setBackgroundColor("w")
-            if self.is_locked[i]:
-                str_L = 'Locked'
-                self.units_axes[1,i].setTitle(str_L)
-            else:
-                str_L = ''
-                self.units_axes[1,i].setTitle(str_L)
             n_uniti = np.sum(units == i)
             n_unitall = len(units)
             str = f"{n_uniti/n_unitall*100:.1f}%"
@@ -557,7 +581,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             if str.isalpha():
                 if str == 'L':
                     self.is_locked[self.unit_now] = ~self.is_locked[self.unit_now]
-                    self.plt_units()
+                    self.plt_locked()
                 if str == 'A':
                     self.update_selected()
                     self.set_addpoint(0)
@@ -568,14 +592,15 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             if self.is_locked[i]:
                 out[units == i] = 1
         return(out == 1)
-    def update_unit(self, units):
-        # print('call update_unit')
-        idx = self.get_lockedlines()
-        units[idx] = self.data['units'].item()[idx]
+    def update_unit(self, units, locked = []):
         if self.is_addhistory:
-            # print('add units +1')
             self.history_units.append(self.data['units'].item())
-            # print(self.history_units)
+            self.history_locked.append(self.is_locked)
+        if len(locked) == 0:
+            idx = self.get_lockedlines()
+            units[idx] = self.data['units'].item()[idx]
+        else:
+            self.is_locked = locked
         self.data['units'].itemset(units)
         self.comp_default()
         self.plt_all()
@@ -791,16 +816,44 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def sw_undo(self):
         if len(self.history_units) > 0:
             units = self.history_units[-1].copy()
+            locked = self.history_locked[-1].copy()
             self.redo_units = self.data['units'].item().copy()
+            self.redo_locked = self.is_locked
             self.history_units.pop()
+            self.history_locked.pop()
             self.is_addhistory = False
-            self.update_unit(units)
+            self.update_unit(units, locked)
             self.is_addhistory = True
     def sw_redo(self):
         if len(self.redo_units) > 0:
-            self.update_unit(self.redo_units)
+            self.update_unit(self.redo_units, self.redo_locked)
             self.redo_units = []
-
+            self.redo_locked = []
+    def sw_removechannel(self):
+        unow = self.unit_now
+        self.is_locked[unow] = False
+        units = self.data['units'].item().copy()
+        units[units == unow] = 0
+        self.update_unit(units)
+    def sw_combinechannels(self):
+        1
+    def sw_squeezechannels(self):
+        units = self.data['units'].item().copy()
+        ct = np.zeros(self.n_maxunit)
+        for i in range(self.n_maxunit):
+            ct[i] = np.sum(units == i)
+        us = np.nonzero(ct > 0)[0]
+        nu = len(us)
+        islocked = self.is_locked.copy()
+        if nu < np.max(us)+1:
+            for i in range(self.n_maxunit):
+                if i < nu:
+                    if i != us[i]:
+                        units[units == us[i]] = i
+                        islocked[i] = islocked[us[i]]
+                else:
+                    islocked[i] = False
+            self.update_unit(units, islocked)
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
