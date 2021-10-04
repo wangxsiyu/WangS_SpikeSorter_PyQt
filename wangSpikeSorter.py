@@ -596,10 +596,12 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                     trg[0] = te[0]
                 # ITI
                 st = self.data['spikeTimes'].item().squeeze()
-                hst_y, hst_x = np.histogram(np.diff(st[tid]), bins=np.linspace(0, 100, 20))
+                iti = np.diff(st[tid])
+                hst_y, hst_x = np.histogram(iti, bins=np.arange(0, np.max(iti), 2))
                 thst = pg.PlotCurveItem(hst_x, hst_y, stepMode=True, fillLevel=0, brush=pg.mkBrush(self.color_unit[i]))
                 self.units_axes[1, i].addItem(thst)
                 self.units_axes[1, i].autoRange()
+                self.units_axes[1, i].setXRange(0, 30, padding = 0)
                 # timing vs firing rate
                 ty, tx = np.histogram(st[tid]/np.max(st), bins=np.linspace(0, 1, 100))
                 tx = (tx[1:] + tx[:-1]) / 2
@@ -608,7 +610,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[2, i].autoRange()
                 # distance from clusters
                 dst = self.dist_waves
-                bin = np.linspace(0, np.mean(dst[tid,i]) * 2, 100)
+                bin = np.arange(0, np.max(dst[tid,i]), np.mean(dst[tid,i])/100)
                 ldsts = np.zeros((self.n_maxunit, len(bin)-1))
                 for j in range(self.n_maxunit):
                     ty, tx = np.histogram(dst[units == j, i], bins = bin)
@@ -616,6 +618,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                     tl = pg.PlotCurveItem(tx, ty, pen=pg.mkPen(self.color_unit[j]))
                     self.units_axes[3, i].addItem(tl)
                 self.units_axes[3, i].autoRange()
+                self.units_axes[3, i].setXRange(0, np.mean(dst[tid,i] * 2), padding = 0)
         for i in range(self.n_maxunit):
             self.units_axes[0, i].setYRange(trg[0], trg[1])
     def keyPressEvent(self, event):
@@ -650,7 +653,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.history_locked.append(self.is_locked.copy())
             self.history_idx.append(self.idx_selected.copy())
             self.history_idxtemp.append(self.idx_selected_temp.copy())
-            print(f"add history, {len(self.history_units)}")
+            # print(f"add history, {len(self.history_units)}")
     def update_unit(self, units, locked = [], idselect = [], idtemp = [], isoverwrite = 0):
         if len(locked) == 0:
             idx = self.get_lockedlines()
@@ -881,7 +884,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             units_predict = dists_u.argmin(axis = 1) + 1
             self.update_unit(units_predict)
     def sw_undo(self):
-        print(f"undo - nlist:{len(self.history_units)}")
+        # print(f"undo - nlist:{len(self.history_units)}")
         if len(self.history_units) > 1:
             self.redo_units = self.data['units'].item().copy()
             self.redo_locked = self.is_locked.copy()
@@ -899,7 +902,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.update_unit(units, locked, idx, idxtemp, 1)
             self.is_addhistory = True
     def sw_redo(self):
-        print(f"redo - nlist:{len(self.history_units)}")
+        # print(f"redo - nlist:{len(self.history_units)}")
         if len(self.redo_units) > 0:
             self.update_unit(self.redo_units.copy(), self.redo_locked.copy(), self.redo_idx.copy(), self.redo_idxtemp.copy(), 1)
             self.redo_units = []
