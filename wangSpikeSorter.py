@@ -1,5 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMainWindow, QDialog, QPushButton, QComboBox
+from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMainWindow, QDialog, QPushButton, QComboBox, QTextEdit
 from pyqtgraph import PlotWidget, GraphicsLayoutWidget, plot
 import pyqtgraph as pg
 import numpy as np
@@ -9,6 +9,35 @@ import matplotlib.path as mplPath
 from intersect import intersection
 import glob
 import os
+
+class Dialog_getTextValue(QDialog):  # Inheritance of the QDialog class
+    def __init__(self, parent = None):
+        super(Dialog_getTextValue, self).__init__(parent)
+        self.initUI()
+    def initUI(self):
+        self.setWindowTitle("Combine channels")  # Window Title
+        self.setGeometry(400, 400, 200, 200)
+        self.c1 = QTextEdit()  # Create a drop-down list box
+        self.c2 = QTextEdit()
+        self.buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)  # window to create confirmation and cancellation buttons
+        self.glayout = QtWidgets.QGridLayout()
+        self.glayout.addWidget(self.c1, 0, 0)
+        self.glayout.addWidget(self.c2, 1, 0)
+        self.glayout.addWidget(self.buttons, 1, 1)
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        self.accepted.connect(self.done_choose)
+        self.rejected.connect(self.cancel_choose)
+        self.setLayout(self.glayout)
+    def setValue(self, str1, str2):
+        self.c1.setText(str(str1))
+        self.c2.setText(str(str2))
+    def done_choose(self):
+        self.choice = 1
+    def cancel_choose(self):
+        self.choice = 0
+    def getInfo(self):  # Defines the method of obtaining user input data
+        return  self.choice, self.c1.toPlainText(), self.c2.toPlainText()
 
 class Dialog_CombineChannel(QDialog):  # Inheritance of the QDialog class
     def __init__(self, parent = None):
@@ -114,9 +143,9 @@ class Ui_MainWindow(object):
         self.pushButton_Confirm = QtWidgets.QPushButton(self.group_PCA)
         self.pushButton_Confirm.setGeometry(QtCore.QRect(670, 390, 81, 32))
         self.pushButton_Confirm.setObjectName("pushButton_Confirm")
-        # self.checkBox_deselect = QtWidgets.QCheckBox(self.group_PCA)
-        # self.checkBox_deselect.setGeometry(QtCore.QRect(490, 380, 87, 20))
-        # self.checkBox_deselect.setObjectName("checkBox_deselect")
+        self.checkBox_showunsorted = QtWidgets.QCheckBox(self.group_PCA)
+        self.checkBox_showunsorted.setGeometry(QtCore.QRect(485, 385, 130, 20))
+        self.checkBox_showunsorted.setObjectName("checkBox_showunsorted")
         # self.checkBox_useasmodel = QtWidgets.QCheckBox(self.group_PCA)
         # self.checkBox_useasmodel.setGeometry(QtCore.QRect(490, 400, 111, 20))
         # self.checkBox_useasmodel.setChecked(True)
@@ -201,6 +230,9 @@ class Ui_MainWindow(object):
         self.actionRedo = QtWidgets.QAction(MainWindow)
         self.actionRedo.setObjectName("actionRedo")
         self.menuEdit.addAction(self.actionRedo)
+        self.actionSelectAll = QtWidgets.QAction(MainWindow)
+        self.actionSelectAll.setObjectName("actionSelectAll")
+        self.menuEdit.addAction(self.actionSelectAll)
         self.RemoveChannel = QtWidgets.QAction(MainWindow)
         self.RemoveChannel.setObjectName("RemoveChannel")
         self.menuFunction.addAction(self.RemoveChannel)
@@ -213,6 +245,9 @@ class Ui_MainWindow(object):
         self.RemovefromChannel = QtWidgets.QAction(MainWindow)
         self.RemovefromChannel.setObjectName("RemovefromChannel")
         self.menuFunction.addAction(self.RemovefromChannel)
+        self.setnoisethreshold = QtWidgets.QAction(MainWindow)
+        self.setnoisethreshold.setObjectName("setnoisethreshold")
+        self.menuFunction.addAction(self.setnoisethreshold)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuEdit.menuAction())
         self.menubar.addAction(self.menuFunction.menuAction())
@@ -237,7 +272,7 @@ class Ui_MainWindow(object):
         self.pushButton_resettemp.setText(_translate("MainWindow", "clear"))
         self.pushButton_Confirm.setText(_translate("MainWindow", "Confirm"))
         self.pushButton_noise.setText(_translate("MainWindow", "Noise"))
-        # self.checkBox_deselect.setText(_translate("MainWindow", "de-select"))
+        self.checkBox_showunsorted.setText(_translate("MainWindow", "show unsorted"))
         # self.checkBox_useasmodel.setText(_translate("MainWindow", "use as model"))
         self.pushButton_reset.setText(_translate("MainWindow", "Reset"))
         self.group_Methods.setTitle(_translate("MainWindow", "Clustering"))
@@ -258,6 +293,9 @@ class Ui_MainWindow(object):
         self.actionUndo.setText(_translate("MainWindow", "Undo"))
         self.actionUndo.setStatusTip(_translate("MainWindow", "Undo"))
         self.actionUndo.setShortcut(_translate("MainWindow", "Ctrl+Z"))
+        self.actionSelectAll.setText(_translate("MainWindow", "Select All"))
+        self.actionSelectAll.setStatusTip(_translate("MainWindow", "Select All"))
+        self.actionSelectAll.setShortcut(_translate("MainWindow", "Ctrl+A"))
         self.actionRedo.setText(_translate("MainWindow", "Redo"))
         self.actionRedo.setStatusTip(_translate("MainWindow", "Redo"))
         self.actionRedo.setShortcut(_translate("MainWindow", "Ctrl+Shift+Z"))
@@ -265,6 +303,7 @@ class Ui_MainWindow(object):
         self.CombineChannels.setText(_translate("MainWindow", "Combine Channels"))
         self.SqueezeChannels.setText(_translate("MainWindow", "Squeeze Channels"))
         self.RemovefromChannel.setText(_translate("MainWindow", "Remove from Channel"))
+        self.setnoisethreshold.setText(_translate("MainWindow", "Set noise threshold"))
 class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent = None):
         QMainWindow.__init__(self, parent = parent)
@@ -275,6 +314,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.color_unit = ["k","r","b","g","c","y"]
         self.n_maxunit = len(self.color_unit)
         self.is_loaddata = False
+        self.dlg_noisethreshold = Dialog_getTextValue(self)
+        self.dlg_noisethreshold.setValue(-500, 500)
+        self.threshold_noise = np.array([])
         self.setup_reset()
         self.setup_axes()
         self.setup_connect()
@@ -282,10 +324,13 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.actionLoadFolder.triggered.connect(self.sw_load_folder)
         self.actionUndo.triggered.connect(self.sw_undo)
         self.actionRedo.triggered.connect(self.sw_redo)
+        self.actionSelectAll.triggered.connect(self.sw_selectall)
+        self.checkBox_showunsorted.clicked.connect(self.sw_showunsorted)
         self.RemoveChannel.triggered.connect(self.sw_removechannel)
         self.CombineChannels.triggered.connect(self.sw_combinechannels)
         self.SqueezeChannels.triggered.connect(self.sw_squeezechannels)
         self.RemovefromChannel.triggered.connect(self.sw_removefromchannel)
+        self.setnoisethreshold.triggered.connect(self.sw_setnoisethreshold)
         self.pushButton_reset.clicked.connect(self.sw_reset)
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
@@ -351,6 +396,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 # self.graphicsView_units.addViewBox(row = uj, col = ui)
                 self.units_axes.append(te)
         self.units_axes = np.reshape(self.units_axes, (-1,self.n_maxunit))
+    def sw_showunsorted(self):
+        # print('show unsorted')
+        self.plt_raw()
     def setup_reset(self):
         self.comboBox_PC1.setCurrentIndex(0)
         self.comboBox_PC2.setCurrentIndex(1)
@@ -404,6 +452,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.pca = self.PCA(waves)
         self.sw_combobox_pc()
         self.comp_default()
+        self.check_threshold_noise()
         self.plt_all()
     def comp_default(self):
         # pc = self.pca
@@ -520,12 +569,16 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.graphicsView_pca.setLabel('bottom',f'{self.comboBox_PC1.currentText()}')
         self.graphicsView_pca.setLabel('left',f'{self.comboBox_PC2.currentText()}')
     def plt_raw(self):
+        # print('plt_raw')
         idp = self.get_selected()
         waves = self.data['waves'].item().copy()
         units = self.data['units'].item().copy()
         self.graphicsView_raw.setLabel('left','Voltage')
         self.graphicsView_raw.setLabel('bottom','Time')
         for ui in range(self.n_maxunit):
+            if (ui > 0) & (self.checkBox_showunsorted.isChecked()):
+                self.raw_lines[ui].mysetData()
+                continue
             tid = (units == ui).squeeze()
             if len(idp) > 0:
                 tid = tid & ~idp
@@ -620,7 +673,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[3, i].autoRange()
                 self.units_axes[3, i].setXRange(0, np.mean(dst[tid,i] * 2), padding = 0)
         for i in range(self.n_maxunit):
-            self.units_axes[0, i].setYRange(trg[0], trg[1])
+            if np.any(units == i):
+                self.units_axes[0, i].setYRange(trg[0], trg[1])
     def keyPressEvent(self, event):
         key = event.key()
         if self.is_loaddata == 0:
@@ -646,6 +700,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         for i in range(self.n_maxunit):
             if self.is_locked[i]:
                 out[units == i] = 1
+        out[units == -1] = 1 # for noise
         return(out == 1)
     def addhistory(self):
         if self.is_addhistory:
@@ -883,6 +938,12 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             dists_u = dists[:,range(1,self.n_maxunit-1)]
             units_predict = dists_u.argmin(axis = 1) + 1
             self.update_unit(units_predict)
+    def sw_selectall(self):
+        units = self.data['units'].item().copy()
+        self.idx_selected = units == 0
+        self.idx_selected_temp = []
+        self.addhistory()
+        self.plt_all()
     def sw_undo(self):
         # print(f"undo - nlist:{len(self.history_units)}")
         if len(self.history_units) > 1:
@@ -956,6 +1017,28 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             locked = self.is_locked.copy()
             locked[unow] = False
             self.update_unit(units, locked, idx_selected, idx_selected_temp, 1)
+    def sw_setnoisethreshold(self):
+        if self.dlg_noisethreshold.exec():
+            c, c1, c2 = self.dlg_noisethreshold.getInfo()
+            if c == 1:
+                if (c1 == '') | (c2 == ''):
+                    self.threshold_noise = np.array([])
+                else:
+                    c1 = int(c1)
+                    c2 = int(c2)
+                    self.dlg_noisethreshold.setValue(c1, c2)
+                    self.threshold_noise = np.array([c1,c2])
+                    self.check_threshold_noise()
+    def check_threshold_noise(self):
+        if (len(self.threshold_noise) == 2):
+            waves = self.data['waves'].item().copy()
+            tid = (np.max(waves, axis=1) > self.threshold_noise[1]) | (np.min(waves, axis=1) < self.threshold_noise[0])
+            if np.any(tid):
+                self.idx_selected = tid
+                self.idx_selected_temp = []
+                self.select_locked()
+                self.addhistory()
+                self.plt_raw()
 
 if __name__ == "__main__":
     import sys
