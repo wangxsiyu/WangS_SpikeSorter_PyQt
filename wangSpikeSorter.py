@@ -485,10 +485,19 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 sd[i,] = np.std(waves[tid,], axis = 0)#/np.sqrt(np.sum(tid))
         self.av_waves = av
         self.sd_waves = sd
+
+        # compute Raw distance
         dist = np.zeros((waves.shape[0], self.n_maxunit))
         for i in range(self.n_maxunit):
             dist[:,i] = np.mean((waves - av[i,])**2, axis = 1)
-        self.dist_waves = dist
+        self.dist_waves_raw = dist
+
+        # # compute PCA distance
+        # dist = np.zeros((waves.shape[0], self.n_maxunit))
+        # for i in range(self.n_maxunit):
+        #     dist[:,i] = np.mean((waves - av[i,])**2, axis = 1)
+        # self.dist_waves_pca = dist
+        self.dist_waves = self.dist_waves_raw
     def PCA(self, X, num_components=[]):
         if len(num_components) == 0:
             num_components = X.shape[1]
@@ -1101,7 +1110,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                         else:
                             tu = units == i
                             tupred = units_predict == i
-                        if np.any(tupred) & (np.sum(tu) > 10): # greater than 10 lines
+                        if np.any(tupred):# & (~np.any(np.isnan(dists[tu, i]))): # distance
                             t_thres = a_std * np.std(dists[tu, i]) + np.mean(dists[tu, i])
                             units_predict[tupred] = units_predict[tupred] * (dists[tupred, i] < t_thres)
         return(units_predict)
