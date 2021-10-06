@@ -566,7 +566,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.graphicsView_side1.setTitle(str)
 
         self.graphicsView_side2.clear()
-        str = f"unsorted: {np.mean(units == -1)*100:.2f}%, {np.sum(units == -1)}/{len(units)}"
+        str = f"noise: {np.mean(units == -1)*100:.2f}%, {np.sum(units == -1)}/{len(units)}"
         self.graphicsView_side2.setTitle(str)
         self.graphicsView_side2.setLabel('left', 'Voltage')
         self.graphicsView_side2.setLabel('bottom', 'Time')
