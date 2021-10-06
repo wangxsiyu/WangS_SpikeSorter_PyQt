@@ -38,7 +38,6 @@ class Dialog_getTextValue(QDialog):  # Inheritance of the QDialog class
         self.choice = 0
     def getInfo(self):  # Defines the method of obtaining user input data
         return  self.choice, self.c1.toPlainText(), self.c2.toPlainText()
-
 class Dialog_CombineChannel(QDialog):  # Inheritance of the QDialog class
     def __init__(self, parent = None):
         super(Dialog_CombineChannel, self).__init__(parent)
@@ -166,6 +165,9 @@ class Ui_MainWindow(object):
         self.comboBox_ClusterMethods.setGeometry(QtCore.QRect(10, 40, 204, 26))
         self.comboBox_ClusterMethods.setObjectName("comboBox_ClusterMethods")
         self.comboBox_ClusterMethods.addItem("")
+        self.checkBox_locked = QtWidgets.QCheckBox(self.group_Methods)
+        self.checkBox_locked.setGeometry(QtCore.QRect(10, 70, 100, 20))
+        self.checkBox_locked.setObjectName("checkBox_locked")
         # self.pushButton_sortsafe = QtWidgets.QPushButton(self.group_Methods)
         # self.pushButton_sortsafe.setGeometry(QtCore.QRect(10, 140, 171, 32))
         # self.pushButton_sortsafe.setObjectName("pushButton_sortsafe")
@@ -277,6 +279,8 @@ class Ui_MainWindow(object):
         self.pushButton_reset.setText(_translate("MainWindow", "Reset"))
         self.group_Methods.setTitle(_translate("MainWindow", "Clustering"))
         # self.pushButton_sortsafe.setText(_translate("MainWindow", "Cluster with confidence"))
+        self.checkBox_locked.setText(_translate("MainWindow", "lock existing channels"))
+        self.checkBox_locked.setChecked(True)
         self.pushButton_sortall.setText(_translate("MainWindow", "Cluster all"))
         self.comboBox_ClusterMethods.setItemText(0, _translate("MainWindow", "minimal distance"))
         self.label_channel.setText(_translate("MainWindow", "Load data first"))
@@ -398,7 +402,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.units_axes = np.reshape(self.units_axes, (-1,self.n_maxunit))
     def sw_showunsorted(self):
         # print('show unsorted')
-        self.plt_raw()
+        self.plt_all()
     def setup_reset(self):
         self.comboBox_PC1.setCurrentIndex(0)
         self.comboBox_PC2.setCurrentIndex(1)
@@ -459,10 +463,13 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         units = self.data['units'].item().copy()
         waves = self.data['waves'].item().copy()
         npix = waves.shape[1]
-        av = np.zeros((self.n_maxunit, npix))
-        sd = np.zeros((self.n_maxunit, npix))
+        av = np.ones((self.n_maxunit, npix)) * np.NaN
+        sd = np.ones((self.n_maxunit, npix)) * np.NaN
         for i in range(self.n_maxunit):
-            tid = (units == i).squeeze()
+            if i == 0:
+                tid = (units == -1).squeeze()
+            else:
+                tid = (units == i).squeeze()
             if np.any(tid):
                 av[i,] = np.mean(waves[tid,], axis = 0)
                 sd[i,] = np.std(waves[tid,], axis = 0)#/np.sqrt(np.sum(tid))
@@ -554,6 +561,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         pc = self.pc_now
         idp = self.get_selected()
         for ui in range(self.n_maxunit):
+            if (ui > 0) & (self.checkBox_showunsorted.isChecked()):
+                self.pca_scatter[ui].setData(x = [], y = [])
+                continue
             tid = (units == ui).squeeze()
             if len(idp) > 0:
                 tid = tid & ~idp
@@ -663,15 +673,17 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[2, i].autoRange()
                 # distance from clusters
                 dst = self.dist_waves
-                bin = np.arange(0, np.max(dst[tid,i]), np.mean(dst[tid,i])/100)
-                ldsts = np.zeros((self.n_maxunit, len(bin)-1))
-                for j in range(self.n_maxunit):
-                    ty, tx = np.histogram(dst[units == j, i], bins = bin)
-                    tx = (tx[1:] + tx[:-1])/2
-                    tl = pg.PlotCurveItem(tx, ty, pen=pg.mkPen(self.color_unit[j]))
-                    self.units_axes[3, i].addItem(tl)
-                self.units_axes[3, i].autoRange()
-                self.units_axes[3, i].setXRange(0, np.mean(dst[tid,i] * 2), padding = 0)
+                if ~np.all(np.isnan(dst[:, i])):
+                    bin = np.arange(0, np.max(dst[:,i]), np.mean(dst[tid,i])/100)
+                    ldsts = np.zeros((self.n_maxunit, len(bin)-1))
+                    for j in range(self.n_maxunit):
+                        ty, tx = np.histogram(dst[units == j, i], bins = bin)
+                        tx = (tx[1:] + tx[:-1])/2
+                        tl = pg.PlotCurveItem(tx, ty, pen=pg.mkPen(self.color_unit[j]))
+                        self.units_axes[3, i].addItem(tl)
+                    self.units_axes[3, i].autoRange()
+                    self.units_axes[3, i].setXRange(0, np.mean(dst[tid,i] * 2), padding = 0)
+
         for i in range(self.n_maxunit):
             if np.any(units == i):
                 self.units_axes[0, i].setYRange(trg[0], trg[1])
@@ -730,6 +742,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.autosave()
     def update_selectedunit(self, idx, unitnew):
         units = self.data['units'].item().copy()
+        # if len([unitnew]) == len(idx):
+        #     units[idx] = unitnew[idx]
+        # else:
         units[idx] = unitnew
         self.update_unit(units)
     def autosave(self):
@@ -934,10 +949,15 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.choosefile(self.fileid)
     def sw_sortall(self):
         if self.comboBox_ClusterMethods.currentText() == "minimal distance":
-            dists = self.dist_waves
-            dists_u = dists[:,range(1,self.n_maxunit-1)]
-            units_predict = dists_u.argmin(axis = 1) + 1
-            self.update_unit(units_predict)
+            units = self.sw_sort_minimaldist()
+        if len(units) > 0:
+            if self.checkBox_locked.isChecked():
+                locked = self.is_locked.copy()
+                self.is_locked = np.ones_like(locked) == 1
+            self.update_unit(units)
+            if self.checkBox_locked.isChecked():
+                self.is_locked = locked
+                self.plt_locked()
     def sw_selectall(self):
         units = self.data['units'].item().copy()
         self.idx_selected = units == 0
@@ -1038,7 +1058,30 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.idx_selected_temp = []
                 self.select_locked()
                 self.addhistory()
-                self.plt_raw()
+                self.plt_all()
+    def sw_sort_minimaldist(self):
+        units_predict = []
+        dlg = Dialog_getTextValue()
+        if dlg.exec():
+            c, a_std, dummy = dlg.getInfo()
+            a_std = int(a_std)
+            if c == 1:
+                dists = self.dist_waves
+                if ~np.all(np.isnan(dists)):
+                    units_predict = np.nanargmin(dists, axis=1)
+                    units = self.data['units'].item().copy()
+                    units_predict[units_predict == 0] = -1
+                    for i in range(self.n_maxunit):
+                        if i == 0:
+                            tu = units == -1
+                            tupred = units_predict == -1
+                        else:
+                            tu = units == i
+                            tupred = units_predict == i
+                        if np.any(tupred) & (np.sum(tu) > 10): # greater than 10 lines
+                            t_thres = a_std * np.std(dists[tu, i]) + np.mean(dists[tu, i])
+                            units_predict[tupred] = units_predict[tupred] * (dists[tupred, i] < t_thres)
+        return(units_predict)
 
 if __name__ == "__main__":
     import sys
