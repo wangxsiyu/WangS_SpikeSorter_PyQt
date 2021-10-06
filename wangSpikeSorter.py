@@ -145,6 +145,9 @@ class Ui_MainWindow(object):
         self.checkBox_showunsorted = QtWidgets.QCheckBox(self.group_PCA)
         self.checkBox_showunsorted.setGeometry(QtCore.QRect(485, 385, 130, 20))
         self.checkBox_showunsorted.setObjectName("checkBox_showunsorted")
+        self.checkBox_usefordist = QtWidgets.QCheckBox(self.group_PCA)
+        self.checkBox_usefordist.setGeometry(QtCore.QRect(485, 405, 130, 20))
+        self.checkBox_usefordist.setObjectName("checkBox_usefordist")
         # self.checkBox_useasmodel = QtWidgets.QCheckBox(self.group_PCA)
         # self.checkBox_useasmodel.setGeometry(QtCore.QRect(490, 400, 111, 20))
         # self.checkBox_useasmodel.setChecked(True)
@@ -164,6 +167,8 @@ class Ui_MainWindow(object):
         self.comboBox_ClusterMethods = QtWidgets.QComboBox(self.group_Methods)
         self.comboBox_ClusterMethods.setGeometry(QtCore.QRect(10, 40, 204, 26))
         self.comboBox_ClusterMethods.setObjectName("comboBox_ClusterMethods")
+        self.comboBox_ClusterMethods.addItem("")
+        self.comboBox_ClusterMethods.addItem("")
         self.comboBox_ClusterMethods.addItem("")
         self.checkBox_locked = QtWidgets.QCheckBox(self.group_Methods)
         self.checkBox_locked.setGeometry(QtCore.QRect(10, 70, 100, 20))
@@ -275,6 +280,7 @@ class Ui_MainWindow(object):
         self.pushButton_Confirm.setText(_translate("MainWindow", "Confirm"))
         self.pushButton_noise.setText(_translate("MainWindow", "Noise"))
         self.checkBox_showunsorted.setText(_translate("MainWindow", "show unsorted"))
+        self.checkBox_usefordist.setText(_translate("MainWindow", "use for dist"))
         # self.checkBox_useasmodel.setText(_translate("MainWindow", "use as model"))
         self.pushButton_reset.setText(_translate("MainWindow", "Reset"))
         self.group_Methods.setTitle(_translate("MainWindow", "Clustering"))
@@ -283,6 +289,7 @@ class Ui_MainWindow(object):
         self.checkBox_locked.setChecked(True)
         self.pushButton_sortall.setText(_translate("MainWindow", "Cluster all"))
         self.comboBox_ClusterMethods.setItemText(0, _translate("MainWindow", "minimal distance"))
+        self.comboBox_ClusterMethods.setItemText(1, _translate("MainWindow", "cut from histogram of distances"))
         self.label_channel.setText(_translate("MainWindow", "Load data first"))
         # self.pushButton_gotochannel.setText(_translate("MainWindow", "Go to Channel"))
         self.pushButton_previouschannel.setText(_translate("MainWindow", "Previous"))
@@ -404,6 +411,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         # print('show unsorted')
         self.plt_all()
     def setup_reset(self):
+        self.checkBox_usefordist.setChecked(True)
         self.comboBox_PC1.setCurrentIndex(0)
         self.comboBox_PC2.setCurrentIndex(1)
         self.sw_combobox_pc()
@@ -440,6 +448,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.rawmat = td
         self.data = td.get('waveforms')
         self.initial_dataformat()
+        self.is_usefordist = np.ones_like(self.data['units'].item()) == 1
         self.comp_setup()
         self.statusbar.showMessage(f"loaded file: {filename}")
     def initial_dataformat(self):
@@ -470,6 +479,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 tid = (units == -1).squeeze()
             else:
                 tid = (units == i).squeeze()
+            tid = tid & self.is_usefordist
             if np.any(tid):
                 av[i,] = np.mean(waves[tid,], axis = 0)
                 sd[i,] = np.std(waves[tid,], axis = 0)#/np.sqrt(np.sum(tid))
@@ -536,14 +546,15 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.graphicsView_side1.setLabel('left', 'Voltage')
         self.graphicsView_side1.setLabel('bottom', 'Time')
         for i in range(self.n_maxunit):
-            # special plot - average
-            cv1 = pg.PlotCurveItem(self.av_waves[i,] + self.sd_waves[i,])
-            cv2 = pg.PlotCurveItem(self.av_waves[i,] - self.sd_waves[i,])
-            tl = pg.FillBetweenItem(curve1=cv1, curve2=cv2, brush=pg.mkBrush(self.color_unit[i]))
-            # tl = pg.PlotCurveItem(self.av_waves[i,], fill = -0.3, ,  pen=pg.mkPen(self.color_unit[i]))
-            self.graphicsView_side1.addItem(tl)
-            str = f"sorted: {np.mean(units > 0) * 100:.2f}%, {np.sum(units > 0)}/{len(units)}"
-            self.graphicsView_side1.setTitle(str)
+            if i > 0:
+                # special plot - average
+                cv1 = pg.PlotCurveItem(self.av_waves[i,] + self.sd_waves[i,])
+                cv2 = pg.PlotCurveItem(self.av_waves[i,] - self.sd_waves[i,])
+                tl = pg.FillBetweenItem(curve1=cv1, curve2=cv2, brush=pg.mkBrush(self.color_unit[i]))
+                # tl = pg.PlotCurveItem(self.av_waves[i,], fill = -0.3, ,  pen=pg.mkPen(self.color_unit[i]))
+                self.graphicsView_side1.addItem(tl)
+                str = f"sorted: {np.mean(units > 0) * 100:.2f}%, {np.sum(units > 0)}/{len(units)}"
+                self.graphicsView_side1.setTitle(str)
 
         self.graphicsView_side2.clear()
         str = f"unsorted: {np.mean(units == -1)*100:.2f}%, {np.sum(units == -1)}/{len(units)}"
@@ -702,7 +713,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 if str == 'L':
                     self.is_locked[self.unit_now] = ~self.is_locked[self.unit_now]
                     self.select_locked()
-                    self.plt_locked()
+                    self.plt_all()
                 if str == 'A':
                     self.update_selected()
                     self.set_addpoint(0)
@@ -722,9 +733,10 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.history_idxtemp.append(self.idx_selected_temp.copy())
             # print(f"add history, {len(self.history_units)}")
     def update_unit(self, units, locked = [], idselect = [], idtemp = [], isoverwrite = 0):
+        oldunits = self.data['units'].item().copy()
         if len(locked) == 0:
             idx = self.get_lockedlines()
-            units[idx] = self.data['units'].item().copy()[idx]
+            units[idx] = oldunits[idx]
         else:
             self.is_locked = locked
         if (len(idselect) > 0) | isoverwrite == 1:
@@ -735,6 +747,11 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.idx_selected_temp = idtemp
         if (len(idselect) > 0) | (len(idtemp) > 0):
             self.reset_selectiontool(0)
+        idx_sig20 = (oldunits != 0) & (units == 0)
+        self.is_usefordist[idx_sig20] = True
+        if ~self.checkBox_usefordist.isChecked():
+            idx_02sig = (oldunits == 0) & (units != 0)
+            self.is_usefordist[idx_02sig] = False
         self.data['units'].itemset(units)
         self.addhistory()
         self.comp_default()
@@ -950,10 +967,13 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def sw_sortall(self):
         if self.comboBox_ClusterMethods.currentText() == "minimal distance":
             units = self.sw_sort_minimaldist()
+        if self.comboBox_ClusterMethods.currentText() == "cut from histogram of distances":
+            units = self.sw_sort_cutfromhistdist()
         if len(units) > 0:
             if self.checkBox_locked.isChecked():
                 locked = self.is_locked.copy()
                 self.is_locked = np.ones_like(locked) == 1
+                self.is_locked[0] = False
             self.update_unit(units)
             if self.checkBox_locked.isChecked():
                 self.is_locked = locked
@@ -1064,7 +1084,10 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         dlg = Dialog_getTextValue()
         if dlg.exec():
             c, a_std, dummy = dlg.getInfo()
-            a_std = int(a_std)
+            if len(a_std) == 0:
+                a_std = np.infty
+            else:
+                a_std = int(a_std)
             if c == 1:
                 dists = self.dist_waves
                 if ~np.all(np.isnan(dists)):
@@ -1082,7 +1105,20 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                             t_thres = a_std * np.std(dists[tu, i]) + np.mean(dists[tu, i])
                             units_predict[tupred] = units_predict[tupred] * (dists[tupred, i] < t_thres)
         return(units_predict)
-
+    def sw_sort_cutfromhistdist(self):
+        units_predict = []
+        dlg = Dialog_getTextValue()
+        if dlg.exec():
+            c, unow, thres = dlg.getInfo()
+            unow = int(unow)
+            thres = int(thres)
+            if (c == 1) & (unow > 0) & (unow < self.n_maxunit):
+                dists = self.dist_waves
+                if ~np.all(np.isnan(dists)):
+                    tid = dists[:, unow] < thres
+                    units_predict = self.data['units'].item().copy()
+                    units_predict[tid] = unow
+        return(units_predict)
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
