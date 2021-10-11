@@ -8,6 +8,8 @@ from scipy.io import loadmat
 import matplotlib.path as mplPath
 from intersect import intersection
 import glob
+from random import sample, randint
+import time
 import os
 
 class Dialog_getTextValue(QDialog):  # Inheritance of the QDialog class
@@ -114,19 +116,22 @@ class Ui_MainWindow(object):
         self.group_PCA.setGeometry(QtCore.QRect(10, 10, 761, 431))
         self.group_PCA.setObjectName("group_PCA")
         self.comboBox_PC1 = QtWidgets.QComboBox(self.group_PCA)
-        self.comboBox_PC1.setGeometry(QtCore.QRect(10, 380, 71, 41))
+        self.comboBox_PC1.setGeometry(QtCore.QRect(10, 375, 71, 41))
         self.comboBox_PC1.setObjectName("comboBox_PC1")
         self.comboBox_PC1.addItem("")
         self.comboBox_PC1.addItem("")
         self.comboBox_PC1.addItem("")
         self.comboBox_PC1.addItem("")
         self.comboBox_PC2 = QtWidgets.QComboBox(self.group_PCA)
-        self.comboBox_PC2.setGeometry(QtCore.QRect(90, 380, 71, 41))
+        self.comboBox_PC2.setGeometry(QtCore.QRect(10, 400, 71, 41))
         self.comboBox_PC2.setObjectName("comboBox_PC2")
         self.comboBox_PC2.addItem("")
         self.comboBox_PC2.addItem("")
         self.comboBox_PC2.addItem("")
         self.comboBox_PC2.addItem("")
+        self.checkBox_showallunits = QtWidgets.QCheckBox(self.group_PCA)
+        self.checkBox_showallunits.setGeometry(QtCore.QRect(90, 385, 71, 41))
+        self.checkBox_showallunits.setObjectName("checkBox_showallunits")
         self.pushButton_Add = QtWidgets.QPushButton(self.group_PCA)
         self.pushButton_Add.setGeometry(QtCore.QRect(250, 390, 81, 32))
         self.pushButton_Add.setObjectName("pushButton_Add")
@@ -287,6 +292,8 @@ class Ui_MainWindow(object):
         # self.pushButton_sortsafe.setText(_translate("MainWindow", "Cluster with confidence"))
         self.checkBox_locked.setText(_translate("MainWindow", "lock existing channels"))
         self.checkBox_locked.setChecked(True)
+        self.checkBox_showallunits.setText(_translate("MainWindow", "all units"))
+        self.checkBox_showallunits.setChecked(True)
         self.pushButton_sortall.setText(_translate("MainWindow", "Cluster all"))
         self.comboBox_ClusterMethods.setItemText(0, _translate("MainWindow", "minimal distance"))
         self.comboBox_ClusterMethods.setItemText(1, _translate("MainWindow", "cut from histogram of distances"))
@@ -320,6 +327,13 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         QMainWindow.__init__(self, parent = parent)
         self.setupUi(self)
         self.setup_SW()
+    def tic(self):
+        self.t_tic = time.perf_counter()
+    def toc(self, option = 0):
+        self.t_toc = time.perf_counter()
+        print(f"Runtime: {self.t_toc - self.t_tic:0.4f} seconds")
+        if (option == 1):
+            self.t_tic = self.t_toc
     def setup_SW(self):
         # set up colors
         self.color_unit = ["k","r","b","g","c","y"]
@@ -337,6 +351,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.actionRedo.triggered.connect(self.sw_redo)
         self.actionSelectAll.triggered.connect(self.sw_selectall)
         self.checkBox_showunsorted.clicked.connect(self.sw_showunsorted)
+        self.checkBox_showallunits.clicked.connect(self.sw_showallunits)
         self.RemoveChannel.triggered.connect(self.sw_removechannel)
         self.CombineChannels.triggered.connect(self.sw_combinechannels)
         self.SqueezeChannels.triggered.connect(self.sw_squeezechannels)
@@ -353,8 +368,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.pushButton_sortall.clicked.connect(self.sw_sortall)
         self.pca_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_pca)
         self.raw_emptyplot.scene().sigMouseClicked.connect(self.mouse_clicked_raw)
-        self.comboBox_PC1.activated.connect(self.sw_combobox_pc)
-        self.comboBox_PC2.activated.connect(self.sw_combobox_pc)
+        self.comboBox_PC1.activated.connect(self.sw_combobox_pc_plt)
+        self.comboBox_PC2.activated.connect(self.sw_combobox_pc_plt)
         self.comboBox_channel.activated.connect(self.sw_gotochannel)
     def setup_axes(self):
         # set up graphics view background
@@ -409,7 +424,20 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.units_axes = np.reshape(self.units_axes, (-1,self.n_maxunit))
     def sw_showunsorted(self):
         # print('show unsorted')
+        self.plt_pca()
+        self.plt_raw()
+    def sw_showallunits(self):
+        self.get_randomsubsets()
         self.plt_all()
+    def get_randomsubsets(self):
+        units = self.data['units'].item().copy()
+        nu = len(units)
+        if (nu < 10000) or self.checkBox_showallunits.isChecked():
+            self.idx_randomsubset = np.ones_like(units) == 1
+        else:
+            tidx = sample(range(nu), 10000)
+            self.idx_randomsubset = np.ones_like(units) == 0
+            self.idx_randomsubset[tidx] = True
     def setup_reset(self):
         self.checkBox_usefordist.setChecked(True)
         self.comboBox_PC1.setCurrentIndex(0)
@@ -449,24 +477,37 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.data = td.get('waveforms')
         self.initial_dataformat()
         self.is_usefordist = np.ones_like(self.data['units'].item()) == 1
+        if len(self.is_usefordist) >= 10000:
+            self.checkBox_showallunits.setChecked(False)
+        self.get_randomsubsets()
         self.comp_setup()
         self.statusbar.showMessage(f"loaded file: {filename}")
     def initial_dataformat(self):
         units = self.data['units'].item().copy()
         if (len(units) == 1):
             units = units[0]
-            self.data['units'].itemset(units)
+        if (units.dtype != 'float'):
+            units = np.float_(units)
+        units[(units > self.n_maxunit) | (units < -1)] = 0
+        self.data['units'].itemset(units)
         waves = self.data['waves'].item().copy()
         self.data['waves'].itemset(waves.T)
         self.addhistory()
     def comp_setup(self):
         # compute PCA
+        # self.tic()
         waves = self.data['waves'].item().copy()
         self.pca = self.PCA(waves)
+        # self.toc()
         self.sw_combobox_pc()
+        # self.toc()
+        self.n_phaseshift = int(waves.shape[1]/2)
         self.comp_default()
+        # self.toc()
         self.check_threshold_noise()
+        # self.toc()
         self.plt_all()
+        # self.toc()
     def comp_default(self):
         # pc = self.pca
         units = self.data['units'].item().copy()
@@ -491,13 +532,33 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         for i in range(self.n_maxunit):
             dist[:,i] = np.mean((waves - av[i,])**2, axis = 1)
         self.dist_waves_raw = dist
+        # compute phase-shift distance
+        dist = np.zeros((waves.shape[0], self.n_maxunit))
+        shifts = np.zeros((waves.shape[0], self.n_maxunit))
+        ns = self.n_phaseshift
+        nw = waves.shape[1]
+        nu = waves.shape[0]
+        for i in range(self.n_maxunit):
+            if not np.any(np.isnan(av[i,])):
+                tdists = np.zeros((nu, 2*(nw - ns)+1))
+                for j in range(2*(nw - ns)+1):
+                    tx = j - (nw - ns)
+                    trg1 = range(max(tx, 0), min(tx + nw, nw))
+                    trg2 = range(max(nw - ns - j, 0), min(nw + nw - ns - j , nw))
+                    twaves = waves.copy()
+                    tav = av[i, trg2]
+                    twaves = twaves[:, trg1]
+                    twaves_av = np.mean(twaves, axis = 1)
+                    twaves = (twaves.T - twaves_av).T + np.mean(av[i,])
+                    tdists[:,j] = np.mean((twaves - tav)**2, axis = 1)
+                shifts[:,i] = np.argmin(tdists, axis = 1) - (nw - ns)
+                dist[:, i] = np.min(tdists, axis = 1)
+            else:
+                dist[:, i] = np.NaN
+        self.dist_waves_phase = dist
 
-        # # compute PCA distance
-        # dist = np.zeros((waves.shape[0], self.n_maxunit))
-        # for i in range(self.n_maxunit):
-        #     dist[:,i] = np.mean((waves - av[i,])**2, axis = 1)
-        # self.dist_waves_pca = dist
-        self.dist_waves = self.dist_waves_raw
+        self.shifts = shifts
+        self.dist_waves = self.dist_waves_phase
     def PCA(self, X, num_components=[]):
         if len(num_components) == 0:
             num_components = X.shape[1]
@@ -522,6 +583,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         X_reduced = np.dot(eigenvector_subset.transpose(), X_meaned.transpose()).transpose()
 
         return X_reduced
+    def sw_combobox_pc_plt(self):
+        self.sw_combobox_pc()
+        self.plt_pca()
     def sw_combobox_pc(self):
         if self.is_loaddata:
             n1 = self.comboBox_PC1.currentText()
@@ -531,8 +595,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             pc = self.pca[:, (n1, n2)]
             self.pc_now = pc
             self.pca_polygon_vertices = []
-            self.idx_selected_temp = []
-            self.plt_pca()
+            # self.idx_selected_temp = []
     def sw_reset(self):
         # self.setup_reset()
         units = self.data['units'].item().copy()
@@ -541,12 +604,20 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         islocked = np.zeros_like(self.is_locked) == 1
         self.update_unit(units, islocked)
     def plt_all(self):
+        print('plt_all')
+        self.tic()
         self.plt_pca()
+        self.toc(1)
         self.plt_raw()
+        self.toc(1)
         self.plt_selectiontool()
+        # self.toc(1)
         self.plt_units()
+        self.toc(1)
         self.plt_locked()
+        # self.toc()
         self.plt_noise()
+        # self.toc(1)
     def plt_noise(self):
         waves = self.data['waves'].item().copy()
         units = self.data['units'].item().copy()
@@ -554,6 +625,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.graphicsView_side1.clear()
         self.graphicsView_side1.setLabel('left', 'Voltage')
         self.graphicsView_side1.setLabel('bottom', 'Time')
+        # print(self.av_waves[1,:])
+        # print(self.av_waves[:,0])
         for i in range(self.n_maxunit):
             if i > 0:
                 # special plot - average
@@ -581,17 +654,20 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         pc = self.pc_now
         idp = self.get_selected()
         for ui in range(self.n_maxunit):
-            if (ui > 0) & (self.checkBox_showunsorted.isChecked()):
+            if (ui > 0) and (self.checkBox_showunsorted.isChecked()):
                 self.pca_scatter[ui].setData(x = [], y = [])
                 continue
             tid = (units == ui).squeeze()
+            tid = tid & self.idx_randomsubset
             if len(idp) > 0:
                 tid = tid & ~idp
             if np.any(tid):
                 self.pca_scatter[ui].setData(x = pc[tid,0], y = pc[tid,1])
             else:
                 self.pca_scatter[ui].setData(x=[], y=[])
-        if (len(idp) > 0) & np.any(idp):
+
+        if (len(idp) > 0) and np.any(idp):
+            idp = idp & self.idx_randomsubset
             self.points_selected.setData(x=pc[idp, 0], y=pc[idp, 1])
         else:
             self.points_selected.setData(x=[], y=[])
@@ -606,17 +682,20 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.graphicsView_raw.setLabel('left','Voltage')
         self.graphicsView_raw.setLabel('bottom','Time')
         for ui in range(self.n_maxunit):
-            if (ui > 0) & (self.checkBox_showunsorted.isChecked()):
+            if (ui > 0) and (self.checkBox_showunsorted.isChecked()):
                 self.raw_lines[ui].mysetData()
                 continue
             tid = (units == ui).squeeze()
+            tid = tid & self.idx_randomsubset
             if len(idp) > 0:
                 tid = tid & ~idp
             if np.any(tid):
                 self.raw_lines[ui].mysetData(waves[tid,])
             else:
                 self.raw_lines[ui].mysetData()
-        if (len(idp) > 0) & np.any(idp):
+
+        if (len(idp) > 0) and np.any(idp):
+            idp = idp & self.idx_randomsubset
             self.lines_selected.mysetData(waves[idp,])
         else:
             self.lines_selected.mysetData()
@@ -636,7 +715,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def reset_selectiontool(self, option = None):
         self.pca_polygon_vertices = []
         self.raw_line_vertices = []
-        if ~(option is None):
+        if not (option is None):
             self.set_addpoint(option)
     def plt_locked(self):
         for i in range(self.n_maxunit):
@@ -655,7 +734,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[0, i].getViewBox().setBackgroundColor("m")
             else:
                 self.units_axes[0, i].getViewBox().setBackgroundColor("w")
-            n_uniti = np.sum(units == i)
+            tid = (units == i).squeeze()
+            n_uniti = np.sum(tid)
             n_unitall = len(units)
             str = f"{n_uniti/n_unitall*100:.1f}%"
             # str = str + str_L
@@ -665,7 +745,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.units_axes[2, i].clear()
             self.units_axes[3, i].clear()
             if n_uniti > 0:
-                tid = (units == i).squeeze()
+                tid = tid & self.idx_randomsubset
                 # lines
                 lines = MultiLine()
                 lines.mysetData(waves[tid,])
@@ -693,8 +773,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.units_axes[2, i].autoRange()
                 # distance from clusters
                 dst = self.dist_waves
-                if ~np.all(np.isnan(dst[:, i])):
-                    bin = np.arange(0, np.max(dst[:,i]), np.mean(dst[tid,i])/100)
+                if not np.all(np.isnan(dst[:, i])):
+                    bin = np.arange(0, np.nanmax(dst[:,i]), np.nanmean(dst[tid,i])/100)
                     ldsts = np.zeros((self.n_maxunit, len(bin)-1))
                     for j in range(self.n_maxunit):
                         ty, tx = np.histogram(dst[units == j, i], bins = bin)
@@ -715,14 +795,16 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             str = chr(key)
             if str.isdigit():
                 keyint = np.int64(str)
-                if (keyint >=0) & (keyint <self.n_maxunit):
+                if (keyint >=0) and (keyint <self.n_maxunit):
                     self.unit_now = keyint
-                    self.plt_all()
+                    self.plt_units()
             if str.isalpha():
                 if str == 'L':
                     self.is_locked[self.unit_now] = ~self.is_locked[self.unit_now]
                     self.select_locked()
-                    self.plt_all()
+                    self.plt_pca()
+                    self.plt_raw()
+                    self.plt_locked()
                 if str == 'A':
                     self.update_selected()
                     self.set_addpoint(0)
@@ -748,17 +830,17 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             units[idx] = oldunits[idx]
         else:
             self.is_locked = locked
-        if (len(idselect) > 0) | isoverwrite == 1:
+        if (len(idselect) > 0) or (isoverwrite == 1):
             # print(idselect)
             self.idx_selected = idselect
-        if (len(idtemp) > 0) | isoverwrite == 1:
+        if (len(idtemp) > 0) or (isoverwrite == 1):
             # print(idtemp)
             self.idx_selected_temp = idtemp
-        if (len(idselect) > 0) | (len(idtemp) > 0):
+        if (len(idselect) > 0) or (len(idtemp) > 0):
             self.reset_selectiontool(0)
         idx_sig20 = (oldunits != 0) & (units == 0)
         self.is_usefordist[idx_sig20] = True
-        if ~self.checkBox_usefordist.isChecked():
+        if not self.checkBox_usefordist.isChecked():
             idx_02sig = (oldunits == 0) & (units != 0)
             self.is_usefordist[idx_02sig] = False
         self.data['units'].itemset(units)
@@ -790,7 +872,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.idx_selected = []
                 self.addhistory()
         self.reset_selectiontool(0)
-        self.plt_all()
+        self.plt_raw()
+        self.plt_pca()
     def sw_addpoint(self):
         self.idx_selected_temp = []
         self.reset_selectiontool(1)
@@ -803,16 +886,16 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.idx_selected = []
         self.idx_selected_temp = []
         self.reset_selectiontool(0)
-        if (len(idp) > 0) & np.any(idp):
+        if (len(idp) > 0) and np.any(idp):
             self.update_selectedunit(idp, self.unit_now)
     def sw_noise(self):
-            self.update_selected()
-            idp = self.idx_selected
-            self.idx_selected = []
-            self.idx_selected_temp = []
-            self.reset_selectiontool(0)
-            if (len(idp) > 0) & np.any(idp):
-                self.update_selectedunit(idp, -1)
+        self.update_selected()
+        idp = self.idx_selected.copy()
+        self.idx_selected = []
+        self.idx_selected_temp = []
+        self.reset_selectiontool(0)
+        if (len(idp) > 0) and np.any(idp):
+            self.update_selectedunit(idp, -1)
     def select_locked(self):
         idl = self.get_lockedlines()
         if len(self.idx_selected) > 0:
@@ -839,9 +922,10 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.idx_selected_temp = []
         if isadd:
             self.addhistory()
-        self.plt_all()
+        self.plt_pca()
+        self.plt_raw()
     def get_selected(self):
-        idp = self.idx_selected
+        idp = self.idx_selected.copy()
         if len(self.idx_selected_temp) > 0:
             if len(idp) > 0:
                 if self.is_addpoint == 1:
@@ -884,7 +968,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         idp = poly_path.contains_points(pc)
         self.idx_selected_temp = idp
         self.select_locked()
-        self.plt_all()
+        self.plt_pca()
+        self.plt_raw()
     def assist_addpointsinline(self, pts):
         waves = self.data['waves'].item().copy()
         nl = waves.shape[0]
@@ -898,7 +983,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         yy = np.sort(y_coords)
         if np.diff(xx) == 0:
             xx = np.unique(xx)[0]
-            if (xx >= 1) & (xx <= waves.shape[1]):
+            if (xx >= 1) and (xx <= waves.shape[1]):
                 t1 = int(np.floor(xx))
                 t2 = int(np.ceil(xx))
                 if t1 == t2:
@@ -936,7 +1021,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 idp = np.any(dy > 0, axis=1) & np.any(dy < 0, axis = 1)
         self.idx_selected_temp = idp
         self.select_locked()
-        self.plt_all()
+        self.plt_pca()
+        self.plt_raw()
     def choosefile(self, fid):
         self.fileid = fid
         self.filenow = os.path.join(self.folderName, self.filelists[fid])
@@ -992,7 +1078,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.idx_selected = units == 0
         self.idx_selected_temp = []
         self.addhistory()
-        self.plt_all()
+        self.plt_pca()
+        self.plt_raw()
     def sw_undo(self):
         # print(f"undo - nlist:{len(self.history_units)}")
         if len(self.history_units) > 1:
@@ -1070,7 +1157,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         if self.dlg_noisethreshold.exec():
             c, c1, c2 = self.dlg_noisethreshold.getInfo()
             if c == 1:
-                if (c1 == '') | (c2 == ''):
+                if (c1 == '') or (c2 == ''):
                     self.threshold_noise = np.array([])
                 else:
                     c1 = int(c1)
@@ -1078,6 +1165,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                     self.dlg_noisethreshold.setValue(c1, c2)
                     self.threshold_noise = np.array([c1,c2])
                     self.check_threshold_noise()
+                    self.plt_all()
     def check_threshold_noise(self):
         if (len(self.threshold_noise) == 2):
             waves = self.data['waves'].item().copy()
@@ -1087,7 +1175,6 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 self.idx_selected_temp = []
                 self.select_locked()
                 self.addhistory()
-                self.plt_all()
     def sw_sort_minimaldist(self):
         units_predict = []
         dlg = Dialog_getTextValue()
@@ -1099,7 +1186,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                 a_std = int(a_std)
             if c == 1:
                 dists = self.dist_waves
-                if ~np.all(np.isnan(dists)):
+                if not np.all(np.isnan(dists)):
                     units_predict = np.nanargmin(dists, axis=1)
                     units = self.data['units'].item().copy()
                     units_predict[units_predict == 0] = -1
@@ -1121,9 +1208,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             c, unow, thres = dlg.getInfo()
             unow = int(unow)
             thres = int(thres)
-            if (c == 1) & (unow > 0) & (unow < self.n_maxunit):
+            if (c == 1) and (unow > 0) and (unow < self.n_maxunit):
                 dists = self.dist_waves
-                if ~np.all(np.isnan(dists)):
+                if not np.all(np.isnan(dists)):
                     tid = dists[:, unow] < thres
                     units_predict = self.data['units'].item().copy()
                     units_predict[tid] = unow
