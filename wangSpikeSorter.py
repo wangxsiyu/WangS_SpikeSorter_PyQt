@@ -12,6 +12,20 @@ from random import sample, randint
 import time
 import os
 
+class Dialog_plot(QDialog):  # Inheritance of the QDialog class
+    def __init__(self, parent = None):
+        super(Dialog_plot, self).__init__(parent)
+        self.initUI()
+    def initUI(self):
+        self.setWindowTitle("Combine channels")  # Window Title
+        self.setGeometry(100, 100, 800, 600)
+        self.fig = GraphicsLayoutWidget(self) #
+        self.buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok)  # window to create confirmation and cancellation buttons
+        self.buttons.accepted.connect(self.accept)
+        mainLayout = QtWidgets.QVBoxLayout()
+        mainLayout.addWidget(self.fig)
+        mainLayout.addWidget(self.buttons)
+        self.setLayout(mainLayout)
 class Dialog_getTextValue(QDialog):  # Inheritance of the QDialog class
     def __init__(self, parent = None):
         super(Dialog_getTextValue, self).__init__(parent)
@@ -260,6 +274,9 @@ class Ui_MainWindow(object):
         self.setnoisethreshold = QtWidgets.QAction(MainWindow)
         self.setnoisethreshold.setObjectName("setnoisethreshold")
         self.menuFunction.addAction(self.setnoisethreshold)
+        self.seestatssinglecurve = QtWidgets.QAction(MainWindow)
+        self.seestatssinglecurve.setObjectName("seestatssinglecurve")
+        self.menuFunction.addAction(self.seestatssinglecurve)
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuEdit.menuAction())
         self.menubar.addAction(self.menuFunction.menuAction())
@@ -322,6 +339,7 @@ class Ui_MainWindow(object):
         self.SqueezeChannels.setText(_translate("MainWindow", "Squeeze Channels"))
         self.RemovefromChannel.setText(_translate("MainWindow", "Remove from Channel"))
         self.setnoisethreshold.setText(_translate("MainWindow", "Set noise threshold"))
+        self.seestatssinglecurve.setText(_translate("MainWindow", "Single curve stats"))
 class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def __init__(self, parent = None):
         QMainWindow.__init__(self, parent = parent)
@@ -357,6 +375,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.SqueezeChannels.triggered.connect(self.sw_squeezechannels)
         self.RemovefromChannel.triggered.connect(self.sw_removefromchannel)
         self.setnoisethreshold.triggered.connect(self.sw_setnoisethreshold)
+        self.seestatssinglecurve.triggered.connect(self.sw_singlecurvestats)
         self.pushButton_reset.clicked.connect(self.sw_reset)
         self.pushButton_Add.clicked.connect(self.sw_addpoint)
         self.pushButton_Remove.clicked.connect(self.sw_removepoint)
@@ -501,7 +520,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         # self.toc()
         self.sw_combobox_pc()
         # self.toc()
-        self.n_phaseshift = int(waves.shape[1]/2)
+        self.n_phaseshift = int(waves.shape[1]*2/3)
         self.comp_default()
         # self.toc()
         self.check_threshold_noise()
@@ -538,6 +557,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         ns = self.n_phaseshift
         nw = waves.shape[1]
         nu = waves.shape[0]
+        self.dist_shift = list()
         for i in range(self.n_maxunit):
             if not np.any(np.isnan(av[i,])):
                 tdists = np.zeros((nu, 2*(nw - ns)+1))
@@ -549,11 +569,14 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                     tav = av[i, trg2]
                     twaves = twaves[:, trg1]
                     twaves_av = np.mean(twaves, axis = 1)
-                    twaves = (twaves.T - twaves_av).T + np.mean(av[i,])
+                    twaves = (twaves.T - twaves_av).T + np.mean(tav)
                     tdists[:,j] = np.mean((twaves - tav)**2, axis = 1)
+                self.dist_shift.append(tdists)
                 shifts[:,i] = np.argmin(tdists, axis = 1) - (nw - ns)
                 dist[:, i] = np.min(tdists, axis = 1)
             else:
+                self.dist_shift.append([])
+                shifts[:,i] = np.NaN
                 dist[:, i] = np.NaN
         self.dist_waves_phase = dist
 
@@ -1215,10 +1238,36 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                     units_predict = self.data['units'].item().copy()
                     units_predict[tid] = unow
         return(units_predict)
+    def sw_singlecurvestats(self):
+        idp = self.get_selected()
+        if np.sum(idp) == 1:
+            idp = np.where(idp)[0][0]
+            dlg = Dialog_plot()
+            dlg.fig.setBackground('w')
+            waves = self.data['waves'].item().copy()
+            nw = waves.shape[1]
+            ns = self.n_phaseshift
+            tcol = 0
+            for i in range(self.n_maxunit):
+                if len(self.dist_shift[i])>0:
+                    tplt = dlg.fig.addPlot(row=0, col=tcol)
+                    titem = pg.PlotCurveItem(self.dist_shift[i][idp], pen=pg.mkPen(self.color_unit[i]))
+                    tplt.addItem(titem)
+                    tplt.setXRange(ns-nw-0.5, nw * 2 - ns + 0.5,padding = 0)
+                    tplt = dlg.fig.addPlot(row=1, col=tcol)
+                    titem = pg.PlotCurveItem(list(range(nw))+ self.shifts[idp, i], self.av_waves[i,], pen=pg.mkPen(self.color_unit[i]))
+                    tplt.addItem(titem)
+                    titem = pg.PlotCurveItem(list(range(nw)), waves[idp,], pen=pg.mkPen('k'))
+                    tplt.addItem(titem)
+                    tplt.setXRange(ns-nw-0.5, nw * 2 - ns + 0.5,padding = 0)
+                    tcol = tcol + 1
+            dlg.exec()
+
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
     ui = SW_MainWindow()
+
     ui.show()
     # ui.folderName = './'
     # ui.load_folder()
