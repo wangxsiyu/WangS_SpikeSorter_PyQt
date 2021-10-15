@@ -1,5 +1,5 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMainWindow, QDialog, QPushButton, QComboBox, QTextEdit
+from PyQt5.QtWidgets import QInputDialog, QFileDialog, QMainWindow, QDialog, QPushButton, QComboBox, QTextEdit, QMessageBox
 from pyqtgraph import PlotWidget, GraphicsLayoutWidget, plot
 import pyqtgraph as pg
 import numpy as np
@@ -445,12 +445,13 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         # print('show unsorted')
         self.plt_pca()
         self.plt_raw()
+        self.plt_selectiontool()
     def sw_showallunits(self):
         self.get_randomsubsets()
         self.plt_all()
     def get_randomsubsets(self):
         units = self.data['units'].item().copy()
-        nu = len(units)
+        nu = units.size
         if (nu < 10000) or self.checkBox_showallunits.isChecked():
             self.idx_randomsubset = np.ones_like(units) == 1
         else:
@@ -495,8 +496,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.rawmat = td
         self.data = td.get('waveforms')
         self.initial_dataformat()
-        self.is_usefordist = np.ones_like(self.data['units'].item()) == 1
-        if len(self.is_usefordist) >= 10000:
+        self.is_usefordist = np.array(np.ones_like(self.data['units'].item()) == 1)
+        if self.is_usefordist.size >= 10000:
             self.checkBox_showallunits.setChecked(False)
         self.get_randomsubsets()
         self.comp_setup()
@@ -507,6 +508,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             units = units[0]
         if (units.dtype != 'float'):
             units = np.float_(units)
+        units = np.array(units)
         units[(units > self.n_maxunit) | (units < -1)] = 0
         self.data['units'].itemset(units)
         waves = self.data['waves'].item().copy()
@@ -525,7 +527,12 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         # self.toc()
         self.check_threshold_noise()
         # self.toc()
-        self.plt_all()
+        if self.data['units'].item().size > 1:
+            self.plt_all()
+        else:
+            out = QMessageBox.warning(self, "Warning", "This channel is empty, move on to the next")
+            if out:
+                self.sw_nextchannel()
         # self.toc()
     def comp_default(self):
         # pc = self.pca
@@ -588,6 +595,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         # Step-1
         X_meaned = X - np.mean(X, axis=0)
 
+        if X.shape[0] == 1:
+            return X_meaned
         # Step-2
         cov_mat = np.cov(X_meaned, rowvar=False)
 
@@ -609,6 +618,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def sw_combobox_pc_plt(self):
         self.sw_combobox_pc()
         self.plt_pca()
+        self.plt_selectiontool()
     def sw_combobox_pc(self):
         if self.is_loaddata:
             n1 = self.comboBox_PC1.currentText()
@@ -675,6 +685,9 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def plt_pca(self):
         units = self.data['units'].item().copy()
         pc = self.pc_now
+        if pc.shape[0] == 1:
+            self.pca_scatter[units.__int__()].setData(x = pc[0], y= pc[0])
+            return
         idp = self.get_selected()
         for ui in range(self.n_maxunit):
             if (ui > 0) and (self.checkBox_showunsorted.isChecked()):
@@ -751,6 +764,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
     def plt_units(self):
         waves = self.data['waves'].item().copy()
         units = self.data['units'].item().copy()
+        if units.size == 1:
+            return
         trg = np.array([np.infty, -np.infty])
         for i in range(self.n_maxunit):
             if i == self.unit_now:
@@ -828,6 +843,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
                     self.plt_pca()
                     self.plt_raw()
                     self.plt_locked()
+                    self.plt_selectiontool()
                 if str == 'A':
                     self.update_selected()
                     self.set_addpoint(0)
@@ -897,6 +913,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.reset_selectiontool(0)
         self.plt_raw()
         self.plt_pca()
+        self.plt_selectiontool()
     def sw_addpoint(self):
         self.idx_selected_temp = []
         self.reset_selectiontool(1)
@@ -947,6 +964,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
             self.addhistory()
         self.plt_pca()
         self.plt_raw()
+        self.plt_selectiontool()
     def get_selected(self):
         idp = self.idx_selected.copy()
         if len(self.idx_selected_temp) > 0:
@@ -993,6 +1011,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.select_locked()
         self.plt_pca()
         self.plt_raw()
+        self.plt_selectiontool()
     def assist_addpointsinline(self, pts):
         waves = self.data['waves'].item().copy()
         nl = waves.shape[0]
@@ -1046,6 +1065,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.select_locked()
         self.plt_pca()
         self.plt_raw()
+        self.plt_selectiontool()
     def choosefile(self, fid):
         self.fileid = fid
         self.filenow = os.path.join(self.folderName, self.filelists[fid])
@@ -1103,6 +1123,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.addhistory()
         self.plt_pca()
         self.plt_raw()
+        self.plt_selectiontool()
     def sw_undo(self):
         # print(f"undo - nlist:{len(self.history_units)}")
         if len(self.history_units) > 1:
