@@ -503,6 +503,7 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         self.comp_setup()
         self.statusbar.showMessage(f"loaded file: {filename}")
     def initial_dataformat(self):
+        n_pixel = 52
         units = self.data['units'].item().copy()
         if (len(units) == 1):
             units = units[0]
@@ -512,7 +513,8 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         units[(units > self.n_maxunit) | (units < -1)] = 0
         self.data['units'].itemset(units)
         waves = self.data['waves'].item().copy()
-        self.data['waves'].itemset(waves.T)
+        if waves.shape[0] == n_pixel: # rotate when 52x52
+            self.data['waves'].itemset(waves.T)
         self.addhistory()
     def comp_setup(self):
         # compute PCA
@@ -558,37 +560,38 @@ class SW_MainWindow(QMainWindow, Ui_MainWindow):
         for i in range(self.n_maxunit):
             dist[:,i] = np.mean((waves - av[i,])**2, axis = 1)
         self.dist_waves_raw = dist
-        # compute phase-shift distance
-        dist = np.zeros((waves.shape[0], self.n_maxunit))
-        shifts = np.zeros((waves.shape[0], self.n_maxunit))
-        ns = self.n_phaseshift
-        nw = waves.shape[1]
-        nu = waves.shape[0]
-        self.dist_shift = list()
-        for i in range(self.n_maxunit):
-            if not np.any(np.isnan(av[i,])):
-                tdists = np.zeros((nu, 2*(nw - ns)+1))
-                for j in range(2*(nw - ns)+1):
-                    tx = j - (nw - ns)
-                    trg1 = range(max(tx, 0), min(tx + nw, nw))
-                    trg2 = range(max(nw - ns - j, 0), min(nw + nw - ns - j , nw))
-                    twaves = waves.copy()
-                    tav = av[i, trg2]
-                    twaves = twaves[:, trg1]
-                    twaves_av = np.mean(twaves, axis = 1)
-                    twaves = (twaves.T - twaves_av).T + np.mean(tav)
-                    tdists[:,j] = np.mean((twaves - tav)**2, axis = 1)
-                self.dist_shift.append(tdists)
-                shifts[:,i] = np.argmin(tdists, axis = 1) - (nw - ns)
-                dist[:, i] = np.min(tdists, axis = 1)
-            else:
-                self.dist_shift.append([])
-                shifts[:,i] = np.NaN
-                dist[:, i] = np.NaN
-        self.dist_waves_phase = dist
 
-        self.shifts = shifts
-        self.dist_waves = self.dist_waves_phase
+        shifts = np.zeros((waves.shape[0], self.n_maxunit))
+        # compute phase-shift distance
+        if False:
+            dist = np.zeros((waves.shape[0], self.n_maxunit))
+            ns = self.n_phaseshift
+            nw = waves.shape[1]
+            nu = waves.shape[0]
+            self.dist_shift = list()
+            for i in range(self.n_maxunit):
+                if not np.any(np.isnan(av[i,])):
+                    tdists = np.zeros((nu, 2*(nw - ns)+1))
+                    for j in range(2*(nw - ns)+1):
+                        tx = j - (nw - ns)
+                        trg1 = range(max(tx, 0), min(tx + nw, nw))
+                        trg2 = range(max(nw - ns - j, 0), min(nw + nw - ns - j , nw))
+                        twaves = waves.copy()
+                        tav = av[i, trg2]
+                        twaves = twaves[:, trg1]
+                        twaves_av = np.mean(twaves, axis = 1)
+                        twaves = (twaves.T - twaves_av).T + np.mean(tav)
+                        tdists[:,j] = np.mean((twaves - tav)**2, axis = 1)
+                    self.dist_shift.append(tdists)
+                    shifts[:,i] = np.argmin(tdists, axis = 1) - (nw - ns)
+                    dist[:, i] = np.min(tdists, axis = 1)
+                else:
+                    self.dist_shift.append([])
+                    shifts[:,i] = np.NaN
+                    dist[:, i] = np.NaN
+            self.dist_waves_phase = dist
+            self.shifts = shifts
+        self.dist_waves = self.dist_waves_raw
     def PCA(self, X, num_components=[]):
         if len(num_components) == 0:
             num_components = X.shape[1]
